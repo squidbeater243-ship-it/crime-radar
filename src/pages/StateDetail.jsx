@@ -20,6 +20,7 @@ import stateData, { normalizeStateName, stateSlugs } from '../data/stateData';
 import { getState } from '../services/dataService';
 import { arrestsBySex, arrestsByRace, arrestDataMeta } from '../data/nationalArrestData';
 import usePageMeta from '../hooks/usePageMeta';
+import { SITE_NAME, SITE_URL } from '../config/site';
 import prefsService from '../services/prefsService';
 import { recordView } from '../services/viewsService';
 import { playTick, playPop } from '../utils/sounds';
@@ -117,12 +118,34 @@ export default function StateDetail() {
     ? `${displayName} crime stats: ${previewState.crimeMeta?.[0]?.value ?? 'N/A'} violent, ${previewState.crimeMeta?.[1]?.value ?? 'N/A'} property crime. ${previewState.incomeHeadline ?? ''} Explore interactive charts on Crime Radar.`.replace(/\s+/g, ' ').trim()
     : undefined;
 
+  // Dataset schema — this page presents real, sourced statistics (not just
+  // narrative content), which is what schema.org/Dataset is actually for;
+  // it's also the type Google's Dataset Search indexes against.
+  const structuredData = previewState
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'Dataset',
+        name: `${displayName} Crime, Arrest, and Poverty Statistics`,
+        description: metaDescription,
+        url: `${SITE_URL}/state/${normalizedState}`,
+        keywords: ['crime statistics', displayName, 'poverty rate', 'arrest data', 'public safety'],
+        creator: { '@type': 'Organization', name: SITE_NAME, url: SITE_URL },
+        temporalCoverage: previewState.dataYear ? String(previewState.dataYear) : undefined,
+        spatialCoverage: { '@type': 'State', name: `${displayName}, United States` },
+        isAccessibleForFree: true,
+        ...(previewState.sources?.length
+          ? { citation: previewState.sources.map((s) => ({ '@type': 'CreativeWork', name: s.label, url: s.url })) }
+          : {}),
+      }
+    : null;
+
   usePageMeta({
     title: isUnknownState && !loading ? 'State Not Found' : displayName,
     description: metaDescription,
     path: `/state/${normalizedState}`,
     image: previewState ? `/og/${normalizedState}.png` : undefined,
     noindex: isUnknownState && !loading,
+    structuredData,
   });
 
   if (isUnknownState) {

@@ -21,12 +21,29 @@ function upsertCanonical(href) {
   el.setAttribute('href', href);
 }
 
+const STRUCTURED_DATA_ID = 'page-structured-data';
+
+function setStructuredData(data) {
+  let el = document.getElementById(STRUCTURED_DATA_ID);
+  if (!data) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement('script');
+    el.id = STRUCTURED_DATA_ID;
+    el.type = 'application/ld+json';
+    document.head.appendChild(el);
+  }
+  el.textContent = JSON.stringify(data);
+}
+
 // Sets the document title plus meta description / Open Graph / Twitter Card
 // tags / canonical link for the current page. Every route mounts exactly one
 // page component, so there's always a next page to overwrite these when
 // this one unmounts — only the title restores its previous value (matching
 // the old useDocumentTitle behavior, for the brief window between routes).
-export default function usePageMeta({ title, description, path, image, noindex = false } = {}) {
+export default function usePageMeta({ title, description, path, image, noindex = false, structuredData = null } = {}) {
   useEffect(() => {
     const previousTitle = document.title;
     const fullTitle = title ? `${title} — ${SITE_NAME}` : SITE_NAME;
@@ -50,9 +67,10 @@ export default function usePageMeta({ title, description, path, image, noindex =
     upsertMeta('name', 'twitter:image', imageUrl);
     upsertMeta('name', 'robots', noindex ? 'noindex, nofollow' : 'index, follow');
     upsertCanonical(url);
+    setStructuredData(structuredData);
 
     return () => {
       document.title = previousTitle;
     };
-  }, [title, description, path, image, noindex]);
+  }, [title, description, path, image, noindex, structuredData]);
 }
