@@ -1,6 +1,7 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { Radar } from 'lucide-react';
 import GlassSearchBar from '../components/GlassSearchBar';
 import RecentSearches from '../components/RecentSearches';
 import FavoriteStates from '../components/FavoriteStates';
@@ -16,6 +17,47 @@ import stateData from '../data/stateData';
 const UsMap = lazy(() => import('../components/UsMap'));
 
 const FEATURED_SLUGS = ['california', 'texas', 'florida'];
+
+const TAGLINES = [
+  { lead: 'Make sure ', highlight: 'your new home', trail: ' is safe.' },
+  { lead: 'Know your neighborhood ', highlight: 'before you move in', trail: '.' },
+  { lead: "Don't move blind. ", highlight: 'Scan first', trail: '.' },
+  { lead: 'Peace of mind starts ', highlight: 'with the right data', trail: '.' },
+];
+
+const TAGLINE_INTERVAL_MS = 4500;
+
+function RotatingTagline() {
+  const [index, setIndex] = useState(0);
+  const prefersReducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (prefersReducedMotion) return undefined;
+    const id = setInterval(() => setIndex((i) => (i + 1) % TAGLINES.length), TAGLINE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [prefersReducedMotion]);
+
+  const { lead, highlight, trail } = TAGLINES[index];
+
+  return (
+    <h1 className="text-4xl font-semibold text-white sm:text-5xl lg:text-6xl">
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={index}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.4 }}
+          className="inline-block"
+        >
+          {lead}
+          <span className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text text-transparent">{highlight}</span>
+          {trail}
+        </motion.span>
+      </AnimatePresence>
+    </h1>
+  );
+}
 
 function MapFallback() {
   return (
@@ -50,19 +92,20 @@ export default function HomePage() {
 
           <div className="relative z-10">
             <p className="mb-3 text-sm uppercase tracking-[0.35em] text-cyan-300/80">Crime Radar</p>
-            <h1 className="text-4xl font-semibold text-white sm:text-5xl lg:text-6xl">
-              Explore{' '}
-              <span className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text text-transparent">
-                public safety insights
-              </span>{' '}
-              with a glassy, modern lens.
-            </h1>
+            <RotatingTagline />
             <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-300 sm:text-xl">
-              Search any state to reveal interactive crime and demographic snapshots in a sleek, responsive dashboard.
+              Search any state or scan your exact area to see real crime and safety data before you sign a lease.
             </p>
 
             <div className="mt-10 flex flex-col items-center gap-4">
               <GlassSearchBar />
+              <Link
+                to="/area-scan"
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-400 to-sky-500 px-6 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/25 transition hover:brightness-110"
+              >
+                <Radar className="h-4 w-4" aria-hidden />
+                Scan your area for safety
+              </Link>
               <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-slate-300">
                 <span className="text-slate-400">Most popular:</span>
                 {FEATURED_SLUGS.map((slug) => (

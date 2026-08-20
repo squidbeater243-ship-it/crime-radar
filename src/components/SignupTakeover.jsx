@@ -80,11 +80,11 @@ export default function SignupTakeover({ open, onClose }) {
                 </div>
                 <p className="mt-4 text-xs uppercase tracking-[0.32em] text-cyan-300/70">Crime Radar Alerts</p>
                 <h1 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
-                  Get notified about real crime in your area.
+                  Know before you move in.
                 </h1>
                 <p className="mx-auto mt-3 max-w-sm text-sm text-slate-300">
-                  Free email alerts when something significant happens near you — not routine headlines. Skip anytime;
-                  you can turn this on later from the bell icon.
+                  Free email alerts when something significant happens near your next home — not routine headlines.
+                  Skip anytime; you can turn this on later from the bell icon.
                 </p>
 
                 <form onSubmit={handleSubmit} className="mt-6 space-y-3 text-left">

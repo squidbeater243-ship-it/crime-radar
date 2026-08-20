@@ -5,7 +5,7 @@ const links = [
   { to: '/', label: 'Home', end: true },
   { to: '/compare', label: 'Compare' },
   { to: '/overview', label: 'Overview' },
-  { to: '/local-alerts', label: 'Local Alerts' },
+  { to: '/area-scan', label: 'Area Scan' },
 ];
 
 export default function NavBar() {

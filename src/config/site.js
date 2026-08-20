@@ -2,4 +2,4 @@
 // hook (canonical/OG URLs) and the sitemap generator, so they can't drift.
 export const SITE_URL = 'https://crimeradar.platinumsoftwaremn.com';
 export const SITE_NAME = 'Crime Radar';
-export const DEFAULT_DESCRIPTION = 'Explore crime, arrest, and poverty statistics by U.S. state on an interactive map.';
+export const DEFAULT_DESCRIPTION = 'Know if your next neighborhood is safe. Explore crime and safety statistics by U.S. state, or scan any city for recent safety news.';

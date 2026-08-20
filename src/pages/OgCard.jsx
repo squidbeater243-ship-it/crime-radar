@@ -40,7 +40,7 @@ export default function OgCard() {
             </>
           ) : (
             <h1 className="mt-5 max-w-3xl text-6xl font-bold leading-tight">
-              Explore <span className="text-cyan-300">public safety insights</span> by U.S. state.
+              Make sure <span className="text-cyan-300">your new home</span> is safe.
             </h1>
           )}
         </div>

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import ScrollToTop from './components/ScrollToTop';
 import SoundToggle from './components/SoundToggle';
@@ -15,7 +15,7 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const StateDetail = lazy(() => import('./pages/StateDetail'));
 const ComparePage = lazy(() => import('./pages/ComparePage'));
 const Overview = lazy(() => import('./pages/Overview'));
-const LocalAlerts = lazy(() => import('./pages/LocalAlerts'));
+const AreaScan = lazy(() => import('./pages/AreaScan'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const OgCard = lazy(() => import('./pages/OgCard'));
 
@@ -35,7 +35,8 @@ function AnimatedRoutes() {
         <Route path="/" element={<PageTransition><HomePage /></PageTransition>} />
         <Route path="/compare" element={<PageTransition><ComparePage /></PageTransition>} />
         <Route path="/overview" element={<PageTransition><Overview /></PageTransition>} />
-        <Route path="/local-alerts" element={<PageTransition><LocalAlerts /></PageTransition>} />
+        <Route path="/area-scan" element={<PageTransition><AreaScan /></PageTransition>} />
+        <Route path="/local-alerts" element={<Navigate to="/area-scan" replace />} />
         <Route path="/state/:stateName" element={<PageTransition><StateDetail /></PageTransition>} />
         <Route path="/og/:slug" element={<OgCard />} />
         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

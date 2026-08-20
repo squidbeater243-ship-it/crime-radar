@@ -13,6 +13,28 @@ const formatPubDate = (value) => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+// The "scanning" moment between submitting a location and results landing —
+// reuses the same .radar-sweep/.radar-blip CSS already defined globally for
+// RadarBackdrop (including its prefers-reduced-motion handling), just sized
+// for an inline loading state instead of a decorative background.
+function ScanningRadar({ label }) {
+  return (
+    <div className="flex flex-col items-center gap-5 py-4">
+      <div className="relative h-36 w-36">
+        <div
+          className="radar-sweep absolute inset-0 rounded-full"
+          style={{ background: 'conic-gradient(from 0deg, rgba(34,211,238,0.7), transparent 45%)' }}
+        />
+        <div className="absolute inset-0 rounded-full border border-cyan-400/30" />
+        <div className="absolute inset-[20%] rounded-full border border-cyan-400/25" />
+        <div className="absolute inset-[40%] rounded-full border border-cyan-400/20" />
+        <div className="radar-blip absolute left-[30%] top-[35%] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300" style={{ boxShadow: '0 0 10px 3px rgba(103,232,249,0.8)' }} />
+      </div>
+      <p className="text-sm text-slate-300">{label}</p>
+    </div>
+  );
+}
+
 function EmailSignup({ city, stateDisplay }) {
   const [email, setEmail] = useState('');
   const [agreed, setAgreed] = useState(false);
@@ -49,7 +71,7 @@ function EmailSignup({ city, stateDisplay }) {
         <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">Stay informed</p>
       </div>
       <h2 className="mt-2 text-lg font-semibold text-white">
-        Get emailed when something serious happens in {city}, {stateDisplay}.
+        Get emailed if something serious happens in {city}, {stateDisplay}.
       </h2>
       <p className="mt-1 text-sm text-slate-400">
         We&apos;ll only send an email for significant crime news here — not routine headlines. Unsubscribe anytime.
@@ -104,11 +126,11 @@ function EmailSignup({ city, stateDisplay }) {
   );
 }
 
-export default function LocalAlerts() {
+export default function AreaScan() {
   usePageMeta({
-    title: 'Local Alerts',
-    description: 'Get local crime news and free email alerts for your state and city.',
-    path: '/local-alerts',
+    title: 'Area Scan',
+    description: 'Scan any city for recent crime and safety news before you move in.',
+    path: '/area-scan',
   });
   const [state, setState] = useState('');
   const [city, setCity] = useState('');
@@ -145,10 +167,12 @@ export default function LocalAlerts() {
         transition={{ duration: 0.45 }}
         className="relative mx-auto max-w-3xl text-center drop-shadow-[0_2px_16px_rgba(2,6,23,0.85)]"
       >
-        <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/70">Local alerts</p>
-        <h1 className="mt-3 text-4xl font-semibold text-white sm:text-5xl">See what&apos;s happening on your block.</h1>
+        <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/70">Area Scan</p>
+        <h1 className="mt-3 text-4xl font-semibold text-white sm:text-5xl">
+          Is your next neighborhood safe? Scan it before you sign.
+        </h1>
         <p className="mx-auto mt-4 max-w-xl text-base text-slate-300 sm:text-lg">
-          Enter your state and city to scan recent crime-related news for your area.
+          Enter a state and city to scan for recent crime-related news — see what&apos;s actually happening before you move in.
         </p>
 
         <form
@@ -184,7 +208,7 @@ export default function LocalAlerts() {
             className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/25 sm:w-auto"
           >
             <Radar className="h-4 w-4" aria-hidden />
-            Scan my area
+            Scan this area
           </button>
         </form>
       </motion.div>
@@ -192,7 +216,7 @@ export default function LocalAlerts() {
       <div className="relative mx-auto mt-10 max-w-2xl">
         {status === 'idle' && (
           <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center text-sm text-slate-400">
-            Enter a state and city above to scan for local crime updates.
+            Enter a state and city above to scan the area.
           </div>
         )}
 
@@ -201,7 +225,7 @@ export default function LocalAlerts() {
             <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
               Scanning {stateData[submitted.state]?.displayName}, {submitted.city}
             </p>
-            <p className="mt-3 text-slate-300">Pulling recent local headlines…</p>
+            <ScanningRadar label="Pulling recent safety updates…" />
           </div>
         )}
 
@@ -217,7 +241,7 @@ export default function LocalAlerts() {
               {stateData[submitted.state]?.displayName}, {submitted.city}
             </p>
             <p className="mt-3 text-slate-300">
-              No recent crime-related headlines found for this area. Try a larger nearby city.
+              No recent safety-relevant headlines found for this area — that's good news. Try a larger nearby city for more coverage.
             </p>
           </div>
         )}
@@ -225,7 +249,7 @@ export default function LocalAlerts() {
         {status === 'success' && (
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
-              Recent headlines for {stateData[submitted.state]?.displayName}, {submitted.city}
+              Recent safety updates for {stateData[submitted.state]?.displayName}, {submitted.city}
             </p>
             {items.map((item) => (
               <a
