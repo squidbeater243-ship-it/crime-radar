@@ -23,6 +23,10 @@ async function main() {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1200, height: 630 } });
 
+  // Same reasoning as scripts/prerender.js: don't let a headless crawl fire
+  // real requests against Google's ad network on every run.
+  await page.route(/googlesyndication\.com|doubleclick\.net|googleadservices\.com/, (route) => route.abort());
+
   mkdirSync(PUBLIC_OG_DIR, { recursive: true });
 
   const targets = ['default', ...stateSlugs];

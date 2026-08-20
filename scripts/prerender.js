@@ -36,6 +36,15 @@ async function main() {
   const browser = await chromium.launch();
   const page = await browser.newPage();
 
+  // Block AdSense/ad-network requests during the crawl. Without this, the
+  // real ad script in index.html would both (a) fire real ad requests from
+  // a headless bot on every single CI build — the kind of automated traffic
+  // that gets an AdSense account flagged for invalid activity — and (b)
+  // inject its own dynamic script tags into the page, which would then get
+  // baked into the static snapshot below instead of loading fresh for real
+  // visitors.
+  await page.route(/googlesyndication\.com|doubleclick\.net|googleadservices\.com/, (route) => route.abort());
+
   // Tells the app (StateDetail's view-count effect) that this visit is a
   // build-time crawl, not a real reader — so it doesn't fire a real POST
   // to the live view-counter API for every one of the 50 state pages.
