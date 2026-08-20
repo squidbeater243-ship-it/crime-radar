@@ -5,19 +5,21 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+const DEFAULT_PREFS = { recent: [], favorites: [], soundEnabled: false, hasSeenSignupPrompt: false };
+
 describe('loadPrefs', () => {
   it('returns empty recent/favorites lists when nothing is stored', () => {
-    expect(loadPrefs()).toEqual({ recent: [], favorites: [] });
+    expect(loadPrefs()).toEqual(DEFAULT_PREFS);
   });
 
   it('returns the safe default if localStorage holds invalid JSON', () => {
     localStorage.setItem('crimeRadarPrefs_v1', '{not valid json');
-    expect(loadPrefs()).toEqual({ recent: [], favorites: [] });
+    expect(loadPrefs()).toEqual(DEFAULT_PREFS);
   });
 
   it('round-trips whatever savePrefs wrote, filling in missing keys with defaults', () => {
     savePrefs({ recent: ['texas'] });
-    expect(loadPrefs()).toEqual({ recent: ['texas'], favorites: [] });
+    expect(loadPrefs()).toEqual({ ...DEFAULT_PREFS, recent: ['texas'] });
   });
 });
 
