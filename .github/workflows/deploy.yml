@@ -18,7 +18,12 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
+      # Using `npm install` rather than `npm ci` here: this lockfile is
+      # generated on Windows, and `npm ci`'s stricter platform check has a
+      # known bug (EBADPLATFORM) where it incorrectly errors on unrelated
+      # optional platform packages (e.g. esbuild's netbsd-arm64 build) when
+      # installed on a different OS, instead of just skipping them.
+      - run: npm install
 
       - run: npm run lint
 
