@@ -1,0 +1,11 @@
+name = "crime-radar-api"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+[[kv_namespaces]]
+binding = "VIEWS"
+id = "8ac4eb75d1d94bbbae280c988dd500c2"
+
+[triggers]
+crons = ["0 0 * * SUN", "0 12 * * *"]
+

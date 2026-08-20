@@ -1,0 +1,38 @@
+import { Link, NavLink } from 'react-router-dom';
+import { Radar } from 'lucide-react';
+
+const links = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/compare', label: 'Compare' },
+  { to: '/overview', label: 'Overview' },
+  { to: '/local-alerts', label: 'Local Alerts' },
+];
+
+export default function NavBar() {
+  return (
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
+      <nav className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 lg:px-8">
+        <Link to="/" className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-wide text-white">
+          <Radar className="h-5 w-5 text-cyan-300" aria-hidden />
+          Crime Radar
+        </Link>
+        <div className="flex flex-wrap items-center gap-1 text-xs sm:text-sm">
+          {links.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              end={link.end}
+              className={({ isActive }) =>
+                `rounded-full px-2.5 py-1 font-medium transition sm:px-3 sm:py-1.5 ${
+                  isActive ? 'bg-cyan-500/15 text-cyan-100' : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                }`
+              }
+            >
+              {link.label}
+            </NavLink>
+          ))}
+        </div>
+      </nav>
+    </header>
+  );
+}

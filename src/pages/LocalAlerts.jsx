@@ -1,0 +1,258 @@
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { ExternalLink, Mail, Radar } from 'lucide-react';
+import stateData, { stateSlugs } from '../data/stateData';
+import usePageMeta from '../hooks/usePageMeta';
+import { getLocalNews } from '../services/newsService';
+import { subscribe, unsubscribe } from '../services/subscribeService';
+import RadarBackdrop from '../components/RadarBackdrop';
+
+const formatPubDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+function EmailSignup({ city, stateDisplay }) {
+  const [email, setEmail] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [status, setStatus] = useState('idle');
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!agreed) return;
+    setStatus('submitting');
+    try {
+      await subscribe(email.trim(), stateDisplay, city);
+      setStatus('subscribed');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  const handleUnsubscribe = async () => {
+    setStatus('submitting');
+    try {
+      await unsubscribe(email.trim(), stateDisplay, city);
+      setStatus('idle');
+      setEmail('');
+      setAgreed(false);
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+      <div className="flex items-center gap-2">
+        <Mail className="h-4 w-4 text-cyan-300" aria-hidden />
+        <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">Stay informed</p>
+      </div>
+      <h2 className="mt-2 text-lg font-semibold text-white">
+        Get emailed when something serious happens in {city}, {stateDisplay}.
+      </h2>
+      <p className="mt-1 text-sm text-slate-400">
+        We&apos;ll only send an email for significant crime news here — not routine headlines. Unsubscribe anytime.
+      </p>
+
+      {status === 'subscribed' ? (
+        <div className="mt-4 flex flex-col items-start gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-emerald-200">
+            You&apos;re signed up. Alerts for {city}, {stateDisplay} will go to {email}.
+          </p>
+          <button
+            type="button"
+            onClick={handleUnsubscribe}
+            className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            Unsubscribe
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              required
+              aria-label="Email address"
+              className="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 sm:flex-1"
+            />
+            <button
+              type="submit"
+              disabled={!agreed || status === 'submitting'}
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/15 px-5 py-2.5 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {status === 'submitting' ? 'Signing up…' : 'Sign up'}
+            </button>
+          </div>
+          <label className="flex items-start gap-2 text-xs text-slate-400">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(event) => setAgreed(event.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 rounded border-white/20 bg-slate-950"
+            />
+            I agree to receive occasional email alerts for this area.
+          </label>
+          {status === 'error' && <p className="text-xs text-rose-300">Something went wrong. Try again in a moment.</p>}
+        </form>
+      )}
+    </div>
+  );
+}
+
+export default function LocalAlerts() {
+  usePageMeta({
+    title: 'Local Alerts',
+    description: 'Get local crime news and free email alerts for your state and city.',
+    path: '/local-alerts',
+  });
+  const [state, setState] = useState('');
+  const [city, setCity] = useState('');
+  const [submitted, setSubmitted] = useState(null);
+  const [status, setStatus] = useState('idle');
+  const [items, setItems] = useState([]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const trimmedCity = city.trim();
+    if (!state || !trimmedCity) return;
+
+    const location = { state, city: trimmedCity };
+    setSubmitted(location);
+    setStatus('loading');
+
+    try {
+      const stateDisplayName = stateData[state]?.displayName || state;
+      const data = await getLocalNews(trimmedCity, stateDisplayName);
+      setItems(data.items || []);
+      setStatus(data.items && data.items.length > 0 ? 'success' : 'empty');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-16 text-slate-100 sm:px-6 lg:px-8">
+      <RadarBackdrop />
+
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45 }}
+        className="relative mx-auto max-w-3xl text-center drop-shadow-[0_2px_16px_rgba(2,6,23,0.85)]"
+      >
+        <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/70">Local alerts</p>
+        <h1 className="mt-3 text-4xl font-semibold text-white sm:text-5xl">See what&apos;s happening on your block.</h1>
+        <p className="mx-auto mt-4 max-w-xl text-base text-slate-300 sm:text-lg">
+          Enter your state and city to scan recent crime-related news for your area.
+        </p>
+
+        <form
+          onSubmit={handleSubmit}
+          className="mt-10 flex flex-col items-center gap-3 rounded-3xl border border-white/15 bg-white/5 p-4 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl sm:flex-row sm:gap-2"
+        >
+          <select
+            value={state}
+            onChange={(event) => setState(event.target.value)}
+            required
+            aria-label="State"
+            className="w-full rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none sm:w-48"
+          >
+            <option value="" disabled>
+              State
+            </option>
+            {stateSlugs.map((slug) => (
+              <option key={slug} value={slug}>
+                {stateData[slug].displayName}
+              </option>
+            ))}
+          </select>
+          <input
+            value={city}
+            onChange={(event) => setCity(event.target.value)}
+            placeholder="City"
+            required
+            aria-label="City"
+            className="w-full rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 sm:flex-1"
+          />
+          <button
+            type="submit"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/25 sm:w-auto"
+          >
+            <Radar className="h-4 w-4" aria-hidden />
+            Scan my area
+          </button>
+        </form>
+      </motion.div>
+
+      <div className="relative mx-auto mt-10 max-w-2xl">
+        {status === 'idle' && (
+          <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center text-sm text-slate-400">
+            Enter a state and city above to scan for local crime updates.
+          </div>
+        )}
+
+        {status === 'loading' && (
+          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
+              Scanning {stateData[submitted.state]?.displayName}, {submitted.city}
+            </p>
+            <p className="mt-3 text-slate-300">Pulling recent local headlines…</p>
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="rounded-3xl border border-rose-400/20 bg-rose-500/5 p-8 text-center">
+            <p className="text-slate-200">Couldn&apos;t reach the news feed right now. Try again in a moment.</p>
+          </div>
+        )}
+
+        {status === 'empty' && (
+          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
+              {stateData[submitted.state]?.displayName}, {submitted.city}
+            </p>
+            <p className="mt-3 text-slate-300">
+              No recent crime-related headlines found for this area. Try a larger nearby city.
+            </p>
+          </div>
+        )}
+
+        {status === 'success' && (
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
+              Recent headlines for {stateData[submitted.state]?.displayName}, {submitted.city}
+            </p>
+            {items.map((item) => (
+              <a
+                key={item.link}
+                href={item.link}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-2xl border border-white/10 bg-slate-900/70 p-4 backdrop-blur-xl transition hover:border-cyan-400/30 hover:bg-slate-900/90"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-medium text-white">{item.title}</p>
+                  <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {item.source}
+                  {item.source && item.pubDate ? ' · ' : ''}
+                  {formatPubDate(item.pubDate)}
+                </p>
+              </a>
+            ))}
+          </div>
+        )}
+
+        {submitted && status !== 'loading' && (
+          <EmailSignup city={submitted.city} stateDisplay={stateData[submitted.state]?.displayName || submitted.state} />
+        )}
+      </div>
+    </div>
+  );
+}
