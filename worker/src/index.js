@@ -1,3 +1,6 @@
+const API_BASE_URL = 'https://crime-radar-api.crimeradar.workers.dev';
+const SITE_URL = 'https://crimeradar.platinumsoftwaremn.com';
+
 const SLUG_PATTERN = /^[a-z-]{2,40}$/;
 const WEEKLY_PREFIX = 'weekly:';
 const VIEWS_PREFIX = 'views:';
@@ -18,6 +21,18 @@ function json(data, status = 200, extraHeaders = {}) {
     status,
     headers: { 'Content-Type': 'application/json', ...CORS_HEADERS, ...extraHeaders },
   });
+}
+
+function html(markup, status = 200) {
+  return new Response(markup, {
+    status,
+    headers: { 'Content-Type': 'text/html; charset=UTF-8', ...CORS_HEADERS },
+  });
+}
+
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+export function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
 }
 
 async function bump(env, key) {
@@ -153,18 +168,58 @@ async function handleSubscribe(request, env) {
   return json({ success: true });
 }
 
-async function handleUnsubscribe(request, env) {
-  const url = new URL(request.url);
-  const email = (url.searchParams.get('email') || '').trim();
-  const state = (url.searchParams.get('state') || '').trim();
-  const city = (url.searchParams.get('city') || '').trim();
+// Shared by both unsubscribe entry points: the app's fetch-based DELETE
+// (handleUnsubscribe) and the one-click link in alert emails
+// (handleUnsubscribeLink), so the validation/deletion logic can't drift
+// between the two.
+async function performUnsubscribe(searchParams, env) {
+  const email = (searchParams.get('email') || '').trim();
+  const state = (searchParams.get('state') || '').trim();
+  const city = (searchParams.get('city') || '').trim();
 
   if (!EMAIL_PATTERN.test(email) || !LOCATION_PATTERN.test(city) || !LOCATION_PATTERN.test(state)) {
-    return json({ error: 'invalid request' }, 400);
+    return { ok: false };
   }
 
   await env.VIEWS.delete(subKey(state, city, email));
+  return { ok: true, state, city };
+}
+
+async function handleUnsubscribe(request, env) {
+  const url = new URL(request.url);
+  const result = await performUnsubscribe(url.searchParams, env);
+  if (!result.ok) return json({ error: 'invalid request' }, 400);
   return json({ success: true });
+}
+
+export function unsubscribePage({ ok, state, city }) {
+  const heading = ok ? "You're unsubscribed" : "Couldn't process that link";
+  const body = ok
+    ? `You won't receive any more crime alert emails for <strong>${escapeHtml(city)}, ${escapeHtml(state)}</strong>.`
+    : 'This unsubscribe link is invalid or has expired. You can manage your alerts directly on the site instead.';
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${heading} — Crime Radar</title>
+  </head>
+  <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#020617 0%,#111827 50%,#0f172a 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#f8fafc;padding:24px;box-sizing:border-box;">
+    <div style="max-width:420px;width:100%;text-align:center;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);border-radius:24px;padding:40px 32px;">
+      <p style="margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:3px;color:#67e8f9;text-transform:uppercase;">Crime Radar</p>
+      <h1 style="margin:0 0 16px;font-size:22px;color:#ffffff;">${heading}</h1>
+      <p style="margin:0 0 28px;font-size:14px;line-height:1.6;color:#cbd5e1;">${body}</p>
+      <a href="${SITE_URL}/local-alerts" style="display:inline-block;padding:10px 24px;border-radius:999px;border:1px solid rgba(56,189,248,0.3);background:rgba(14,165,233,0.15);color:#a5f3fc;font-size:14px;font-weight:600;text-decoration:none;">Manage alerts</a>
+    </div>
+  </body>
+</html>`;
+}
+
+async function handleUnsubscribeLink(request, env) {
+  const url = new URL(request.url);
+  const result = await performUnsubscribe(url.searchParams, env);
+  return html(unsubscribePage(result), result.ok ? 200 : 400);
 }
 
 const SENT_PREFIX = 'sent:';
@@ -237,7 +292,72 @@ async function getSubscribersByLocation(env) {
   return [...locations.values()];
 }
 
-async function sendAlertEmail(env, emails, state, city, article) {
+export function formatArticleDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Table-based layout with everything inlined — the safest baseline for
+// rendering consistently across Gmail, Outlook, and Apple Mail, most of
+// which strip or mangle <style> blocks and modern CSS. Light theme by
+// design: dark-themed HTML email is a known minefield (clients auto-invert
+// colors they don't recognize), so this deliberately doesn't try to match
+// the app's dark UI.
+export function renderAlertEmailHtml({ state, city, article, unsubscribeUrl }) {
+  const title = escapeHtml(article.title);
+  const source = escapeHtml(article.source || '');
+  const dateLabel = formatArticleDate(article.pubDate);
+  const meta = [source, dateLabel].filter(Boolean).join(' · ');
+  const link = escapeHtml(article.link);
+  const locationLabel = `${escapeHtml(city)}, ${escapeHtml(state)}`;
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crime Radar Alert</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">New alert for ${locationLabel}: ${title}</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+            <tr>
+              <td style="background-color:#0f172a;padding:24px 32px;">
+                <span style="font-size:13px;font-weight:700;letter-spacing:3px;color:#38bdf8;text-transform:uppercase;">Crime Radar</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:1.5px;color:#0ea5e9;text-transform:uppercase;">Alert for ${locationLabel}</p>
+                <h1 style="margin:0 0 16px;font-size:22px;line-height:1.35;color:#0f172a;">${title}</h1>
+                ${meta ? `<p style="margin:0 0 24px;font-size:13px;color:#64748b;">${meta}</p>` : ''}
+                <a href="${link}" style="display:inline-block;padding:12px 24px;background-color:#0ea5e9;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:999px;">Read the full story &rarr;</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
+                <p style="margin:0;font-size:12px;color:#94a3b8;">You're receiving this because you signed up for crime alerts in ${locationLabel} on Crime Radar.</p>
+                <p style="margin:8px 0 0;font-size:12px;"><a href="${unsubscribeUrl}" style="color:#64748b;text-decoration:underline;">Unsubscribe from ${locationLabel} alerts</a></p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+// Sends one email per recipient (not a shared `to` array) for two reasons:
+// each recipient's unsubscribe link has to carry their own email address,
+// and a shared `to` list would otherwise expose every subscriber's address
+// to every other subscriber in that location.
+async function sendAlertEmail(env, email, state, city, article) {
+  const unsubscribeUrl = `${API_BASE_URL}/api/unsubscribe?${new URLSearchParams({ email, state, city })}`;
   const resp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -246,9 +366,9 @@ async function sendAlertEmail(env, emails, state, city, article) {
     },
     body: JSON.stringify({
       from: 'Crime Radar Alerts <alerts@mail.platinumsoftwaremn.com>',
-      to: emails,
+      to: [email],
       subject: `Crime Radar alert: ${city}, ${state}`,
-      html: `<p><strong>${article.title}</strong></p><p>${article.source ? `${article.source} · ` : ''}${article.pubDate}</p><p><a href="${article.link}">Read the full story</a></p><p style="color:#94a3b8;font-size:12px;">You're receiving this because you signed up for crime alerts in ${city}, ${state} on Crime Radar.</p>`,
+      html: renderAlertEmailHtml({ state, city, article, unsubscribeUrl }),
     }),
   });
   return resp.ok;
@@ -284,9 +404,14 @@ async function runAlertCheck(env) {
       const alreadySent = await env.VIEWS.get(sentKey);
       if (alreadySent) continue;
 
-      const ok = await sendAlertEmail(env, emails, state, city, article);
-      if (ok) {
-        summary.sent += 1;
+      let successCount = 0;
+      for (const recipient of emails) {
+        const ok = await sendAlertEmail(env, recipient, state, city, article);
+        if (ok) successCount += 1;
+      }
+
+      if (successCount > 0) {
+        summary.sent += successCount;
         await env.VIEWS.put(sentKey, '1', { expirationTtl: SENT_TTL_SECONDS });
       } else {
         summary.errors.push(`send failed for ${article.title}`);
@@ -346,6 +471,10 @@ export default {
 
     if (url.pathname === '/api/subscribe' && request.method === 'DELETE') {
       return handleUnsubscribe(request, env);
+    }
+
+    if (url.pathname === '/api/unsubscribe' && request.method === 'GET') {
+      return handleUnsubscribeLink(request, env);
     }
 
     return json({ error: 'not found' }, 404);
