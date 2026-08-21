@@ -1,0 +1,35 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'worker/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'worker/**'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Same reasoning as deploy.yml: this lockfile is generated on Windows,
+      # and `npm ci`'s stricter platform check has a known bug (EBADPLATFORM)
+      # where it incorrectly errors on unrelated optional platform packages
+      # on a different OS, instead of just skipping them.
+      - run: npm install
+
+      - run: npm run lint
+
+      - run: npm test
