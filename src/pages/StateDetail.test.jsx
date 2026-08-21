@@ -70,13 +70,25 @@ describe('StateDetail', () => {
     renderAt('/state/california');
     expect(await screen.findByText('Violent crime rate, 2018–2024')).toBeInTheDocument();
     expect(
-      screen.getByText('Independently sourced from FBI historical data; may differ slightly from the snapshot above.')
+      screen.getByText(
+        /Independently sourced from FBI historical data; figures may not align exactly with the snapshot above due to differing collection dates\./
+      )
     ).toBeInTheDocument();
   });
 
   it('renders the Florida-specific caveat instead of the generic caption', async () => {
     renderAt('/state/florida');
     expect(await screen.findByText('Violent crime rate, 2018–2024')).toBeInTheDocument();
-    expect(screen.getByText('FBI-methodology trend; differs from the FDLE figure above.')).toBeInTheDocument();
+    expect(screen.getByText(/FBI-methodology trend; differs from the FDLE figure above\./)).toBeInTheDocument();
+  });
+
+  it('renders the Nebraska-specific caveat instead of the generic caption', async () => {
+    renderAt('/state/nebraska');
+    expect(await screen.findByText('Violent crime rate, 2018–2024')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /FBI-methodology trend; this state's snapshot above is sourced from state data flagged as approximate\./
+      )
+    ).toBeInTheDocument();
   });
 });

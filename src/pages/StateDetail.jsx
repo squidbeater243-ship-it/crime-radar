@@ -93,9 +93,10 @@ export default function StateDetail() {
     florida: 'FBI-methodology trend; differs from the FDLE figure above.',
     nebraska: "FBI-methodology trend; this state's snapshot above is sourced from state data flagged as approximate.",
   };
+  const TREND_2021_NOTE = "2021 figures reflect reduced agency reporting during the FBI's NIBRS transition.";
   const trendCaption =
     TREND_CAVEATS[normalizedState] ||
-    'Independently sourced from FBI historical data; may differ slightly from the snapshot above.';
+    'Independently sourced from FBI historical data; figures may not align exactly with the snapshot above due to differing collection dates.';
   const crimeIndexRange = useMemo(() => computeCrimeIndexRange(Object.values(stateData)), []);
   const safetyScore = previewState ? getSafetyScore(previewState, crimeIndexRange) : null;
 
@@ -273,6 +274,7 @@ export default function StateDetail() {
         </div>
         {trendEntry && (
           <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+            <p className="text-sm text-slate-400">Per 100,000 residents</p>
             <h2 className="text-xl font-semibold text-white">Violent crime rate, 2018–2024</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -290,7 +292,20 @@ export default function StateDetail() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            <p className="mt-3 text-sm text-slate-400">{trendCaption}</p>
+            <p className="mt-3 text-sm text-slate-400">
+              {trendCaption} {TREND_2021_NOTE}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Source:{' '}
+              <a
+                href="https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_violent_crime_rate"
+                target="_blank"
+                rel="noreferrer"
+                className="text-cyan-200 underline decoration-cyan-200/30 decoration-dotted underline-offset-2 hover:text-cyan-100"
+              >
+                FBI UCR data via Wikipedia
+              </a>
+            </p>
           </div>
         )}
         </div>
