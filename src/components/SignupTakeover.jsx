@@ -23,7 +23,7 @@ export default function SignupTakeover({ open, onClose }) {
       const resolvedCity = await cityService.autoCorrectCity(city.trim(), stateDisplay);
       setCity(resolvedCity);
       await subscribe(email.trim(), stateDisplay, resolvedCity);
-      setStatus('subscribed');
+      setStatus('pending');
     } catch {
       setStatus('error');
     }
@@ -60,14 +60,15 @@ export default function SignupTakeover({ open, onClose }) {
               <X className="h-4 w-4" />
             </button>
 
-            {status === 'subscribed' ? (
+            {status === 'pending' ? (
               <div className="py-4">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10">
                   <ShieldCheck className="h-6 w-6 text-emerald-300" aria-hidden />
                 </div>
-                <h2 className="mt-4 text-xl font-semibold text-white">You&apos;re all set.</h2>
+                <h2 className="mt-4 text-xl font-semibold text-white">Almost there.</h2>
                 <p className="mx-auto mt-2 max-w-sm text-sm text-slate-300">
-                  We&apos;ll email {email} if something significant happens in {city}, {stateData[state]?.displayName || state}.
+                  Check {email} for a confirmation link. Alerts for {city}, {stateData[state]?.displayName || state} start once you
+                  confirm.
                 </p>
                 <button
                   type="button"
