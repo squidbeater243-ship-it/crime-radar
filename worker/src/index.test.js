@@ -17,16 +17,26 @@ import worker, {
 // get/put/delete plus prefix-based list.
 function createFakeKv() {
   const store = new Map();
+  // expirationTtl is recorded separately (not just discarded) so tests can
+  // assert a key was actually written with a TTL, not just that it exists --
+  // the real risk this guards against is a KV.put that silently drops the
+  // options argument, which would only ever show up as unbounded storage
+  // growth in production, never as a local test failure.
+  const ttls = new Map();
   return {
     store,
+    ttls,
     async get(key) {
       return store.has(key) ? store.get(key) : null;
     },
-    async put(key, value) {
+    async put(key, value, options) {
       store.set(key, value);
+      if (options?.expirationTtl) ttls.set(key, options.expirationTtl);
+      else ttls.delete(key);
     },
     async delete(key) {
       store.delete(key);
+      ttls.delete(key);
     },
     async list({ prefix = '' } = {}) {
       const keys = [...store.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name }));
@@ -472,6 +482,7 @@ describe('worker.fetch routing', () => {
       expect(pendingKeys).toHaveLength(1);
       const pending = JSON.parse(await env.VIEWS.get(pendingKeys[0]));
       expect(pending).toMatchObject({ email: 'user@example.com', state: 'Minnesota', city: 'Duluth' });
+      expect(env.VIEWS.ttls.get(pendingKeys[0])).toBe(60 * 60 * 24);
     });
 
     it('emails a confirmation link pointing at the pending token', async () => {
@@ -561,6 +572,23 @@ describe('worker.fetch routing', () => {
 
       const resendCalls = fetchMock.mock.calls.filter(([reqUrl]) => String(reqUrl).includes('resend.com'));
       expect(resendCalls).toHaveLength(1);
+    });
+
+    it('sets a bounded TTL on the throttle key, so it cannot silently lock a real user out forever', async () => {
+      const env = makeEnv();
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+      await worker.fetch(
+        new Request('https://api.test/api/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ email: 'user@example.com', state: 'Minnesota', city: 'Duluth' }),
+        }),
+        env,
+        noopCtx
+      );
+
+      const throttleKey = [...env.VIEWS.store.keys()].find((k) => k.startsWith('subthrottle:'));
+      expect(throttleKey).toBeDefined();
+      expect(env.VIEWS.ttls.get(throttleKey)).toBe(5 * 60);
     });
 
     it('throttles per-email case-insensitively', async () => {
@@ -696,6 +724,28 @@ describe('worker.scheduled', () => {
     expect(await env.VIEWS.get('meta:lastReset')).not.toBeNull();
   });
 
+  it('writes the weekly snapshot to an archive key with a bounded TTL, not forever', async () => {
+    // Nothing in the codebase reads archive: keys back programmatically --
+    // they're a manually-inspectable historical log, written on every
+    // Sunday reset indefinitely. Without a TTL that's unbounded KV storage
+    // growth that would never surface as a test failure, only as a slowly
+    // growing bill/key count in production.
+    const env = makeEnv();
+    await worker.fetch(new Request('https://api.test/api/view/minnesota', { method: 'POST' }), env, noopCtx);
+
+    const waited = [];
+    const ctx = { waitUntil: (p) => waited.push(p) };
+    await worker.scheduled({ cron: '0 0 * * SUN' }, env, ctx);
+    await Promise.all(waited);
+
+    const archiveKeys = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('archive:'));
+    expect(archiveKeys).toHaveLength(1);
+    expect(env.VIEWS.ttls.get(archiveKeys[0])).toBe(60 * 60 * 24 * 365);
+
+    const snapshot = JSON.parse(await env.VIEWS.get(archiveKeys[0]));
+    expect(snapshot).toEqual({ minnesota: 1 });
+  });
+
   it('runs the alert check on any other cron expression', async () => {
     const env = makeEnv();
     const waited = [];
@@ -783,6 +833,7 @@ describe('runAlertCheck resilience (via worker.scheduled)', () => {
     expect(emailCall).toBe(2);
     const keys = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('sent:'));
     expect(keys).toHaveLength(1);
+    expect(env.VIEWS.ttls.get(keys[0])).toBe(60 * 60 * 24 * 30);
   });
 });
 

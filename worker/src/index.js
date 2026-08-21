@@ -5,6 +5,8 @@ const SLUG_PATTERN = /^[a-z-]{2,40}$/;
 const WEEKLY_PREFIX = 'weekly:';
 const VIEWS_PREFIX = 'views:';
 const LAST_RESET_KEY = 'meta:lastReset';
+const ARCHIVE_PREFIX = 'archive:';
+const ARCHIVE_TTL_SECONDS = 60 * 60 * 24 * 365;
 const LOCATION_PATTERN = /^[a-zA-Z0-9 .'-]{1,80}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SUB_PREFIX = 'sub:';
@@ -794,7 +796,11 @@ async function resetWeeklyCounts(env) {
   }
 
   const now = new Date().toISOString();
-  await env.VIEWS.put(`archive:${now}`, JSON.stringify(snapshot));
+  // expirationTtl so this doesn't grow forever: nothing in the codebase
+  // reads these back programmatically (they're a manually-inspectable
+  // historical log, e.g. via `wrangler kv key list`), so a runaway key
+  // count would go unnoticed indefinitely otherwise.
+  await env.VIEWS.put(`${ARCHIVE_PREFIX}${now}`, JSON.stringify(snapshot), { expirationTtl: ARCHIVE_TTL_SECONDS });
 
   await Promise.all(list.keys.map((k) => env.VIEWS.delete(k.name)));
   await env.VIEWS.put(LAST_RESET_KEY, now);
