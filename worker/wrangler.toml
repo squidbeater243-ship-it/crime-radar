@@ -9,3 +9,13 @@ id = "8ac4eb75d1d94bbbae280c988dd500c2"
 [triggers]
 crons = ["0 0 * * SUN", "0 12 * * *"]
 
+# Without this, console.log output (including the scheduled-job summaries
+# added this session -- runAlertCheck's locations/sent/errors report) is
+# only visible via `wrangler tail` at the exact moment it happens. Nobody
+# is realistically tailing logs live at a random midnight/noon UTC cron
+# fire, so unopted-in that logging fix would have been effectively
+# write-only. This persists logs so they're queryable afterward in the
+# dashboard.
+[observability]
+enabled = true
+
