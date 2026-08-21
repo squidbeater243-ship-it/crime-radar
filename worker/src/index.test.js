@@ -587,6 +587,31 @@ describe('worker.fetch routing', () => {
       }
     );
 
+    it.each([
+      ['a number', { email: 12345, state: 'MN', city: 'Duluth' }],
+      // Deliberately on email, not state/city: String(true) is "true", which
+      // (being just letters) actually satisfies LOCATION_PATTERN's permissive
+      // charset -- that combination would sail past validation into a real
+      // (unmocked) send attempt instead of testing what this is meant to
+      // test. EMAIL_PATTERN requires an "@" and ".", so "true"/"false" always
+      // fail it regardless of coercion.
+      ['a boolean', { email: true, state: 'MN', city: 'Duluth' }],
+      ['an array', { email: 'user@example.com', state: 'MN', city: [1, 2, 3] }],
+      ['an object', { email: 'user@example.com', state: 'MN', city: { nested: true } }],
+    ])(
+      'rejects a field that is %s instead of a string, with a clean 400 -- not an uncaught exception',
+      async (_label, body) => {
+        // (value || '').trim() throws on any truthy non-string ({"email":
+        // 12345, ...} has no reason not to parse as valid JSON on the wire).
+        // The request body is arbitrary attacker-controlled JSON, so every
+        // field needs to survive being any JSON type, not just the expected
+        // one.
+        const req = new Request('https://api.test/api/subscribe', { method: 'POST', body: JSON.stringify(body) });
+        const res = await worker.fetch(req, makeEnv(), noopCtx);
+        expect(res.status).toBe(400);
+      }
+    );
+
     it('returns 500 when the email service is not configured', async () => {
       const req = new Request('https://api.test/api/subscribe', {
         method: 'POST',

@@ -346,9 +346,16 @@ async function handleSubscribe(request, env) {
     return json({ error: 'invalid request body' }, 400);
   }
 
-  const email = (body.email || '').trim();
-  const state = (body.state || '').trim();
-  const city = (body.city || '').trim();
+  // String(x ?? '') rather than (x || '') -- the request body is arbitrary
+  // JSON, so email/state/city could just as easily be a number, boolean,
+  // array, or object as a string. (x || '').trim() throws on any truthy
+  // non-string (e.g. {"email": 12345, ...}), same uncaught-exception class
+  // as the null-body case above. String() always produces a string, so the
+  // worst case is a value that then correctly fails validation below with a
+  // clean 400, instead of throwing.
+  const email = String(body.email ?? '').trim();
+  const state = String(body.state ?? '').trim();
+  const city = String(body.city ?? '').trim();
 
   if (!isValidEmail(email)) {
     return json({ error: 'invalid email' }, 400);
