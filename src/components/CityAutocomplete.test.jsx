@@ -35,7 +35,7 @@ describe('CityAutocomplete', () => {
 
   it('does not query until at least 2 characters are typed', async () => {
     render(<ControlledCityAutocomplete />);
-    fireEvent.change(screen.getByRole('textbox', { name: 'City' }), { target: { value: 'M' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'City' }), { target: { value: 'M' } });
     await act(async () => {
       vi.advanceTimersByTime(400);
       await Promise.resolve();
@@ -47,7 +47,7 @@ describe('CityAutocomplete', () => {
     const handleChange = vi.fn();
     render(<ControlledCityAutocomplete initialValue="Minn" onChange={handleChange} />);
 
-    const input = screen.getByRole('textbox', { name: 'City' });
+    const input = screen.getByRole('combobox', { name: 'City' });
     fireEvent.focus(input);
     await act(async () => {
       vi.advanceTimersByTime(400);
@@ -65,7 +65,7 @@ describe('CityAutocomplete', () => {
     const handleChange = vi.fn();
     render(<ControlledCityAutocomplete initialValue="Minn" onChange={handleChange} />);
 
-    const input = screen.getByRole('textbox', { name: 'City' });
+    const input = screen.getByRole('combobox', { name: 'City' });
     fireEvent.focus(input);
     await act(async () => {
       vi.advanceTimersByTime(400);
