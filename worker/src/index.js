@@ -36,17 +36,26 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
+// Stops a browser from ever re-interpreting a response as something other
+// than its declared Content-Type (MIME-sniffing) -- relevant here because
+// the html() responses (confirm/unsubscribe pages) are reached via links
+// embedded in emails, a common vector for this kind of probing. Free,
+// zero-regression-risk defense in depth.
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+};
+
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS, ...extraHeaders },
+    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS, ...SECURITY_HEADERS, ...extraHeaders },
   });
 }
 
 function html(markup, status = 200) {
   return new Response(markup, {
     status,
-    headers: { 'Content-Type': 'text/html; charset=UTF-8', ...CORS_HEADERS },
+    headers: { 'Content-Type': 'text/html; charset=UTF-8', ...CORS_HEADERS, ...SECURITY_HEADERS },
   });
 }
 

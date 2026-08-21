@@ -380,6 +380,14 @@ describe('worker.fetch routing', () => {
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
   });
 
+  it('sets X-Content-Type-Options: nosniff on both JSON and HTML responses', async () => {
+    const jsonRes = await worker.fetch(new Request('https://api.test/api/meta'), makeEnv(), noopCtx);
+    expect(jsonRes.headers.get('X-Content-Type-Options')).toBe('nosniff');
+
+    const htmlRes = await worker.fetch(new Request('https://api.test/api/subscribe/confirm'), makeEnv(), noopCtx);
+    expect(htmlRes.headers.get('X-Content-Type-Options')).toBe('nosniff');
+  });
+
   it('returns 404 for an unknown route', async () => {
     const res = await worker.fetch(new Request('https://api.test/api/nope'), makeEnv(), noopCtx);
     expect(res.status).toBe(404);
