@@ -15,6 +15,9 @@ const PENDING_PREFIX = 'pending:';
 const PENDING_TTL_SECONDS = 60 * 60 * 24;
 const SUBSCRIBE_THROTTLE_PREFIX = 'subthrottle:';
 const SUBSCRIBE_THROTTLE_SECONDS = 5 * 60;
+const VIEW_RATE_PREFIX = 'viewrate:';
+const VIEW_RATE_WINDOW_SECONDS = 60;
+const VIEW_RATE_MAX = 30;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -48,10 +51,29 @@ async function bump(env, key) {
   return next;
 }
 
-async function handleView(slug, env) {
+// Unlike /api/subscribe, this endpoint takes no email/identity to key a
+// cooldown on -- and unlike sent:/pending:/subthrottle:, the counters
+// bump() writes never expire (they're real, persistent view counts, not
+// disposable dedup markers). Nothing validates that `slug` corresponds to
+// an actual state either -- it only has to match the character pattern.
+// Combined, an unauthenticated caller could otherwise mint unlimited
+// permanent KV keys for free just by POSTing arbitrary garbage slugs. A
+// generous per-IP rate limit doesn't require knowing the real slug list,
+// and 30/minute is far above what a real visitor loading state pages could
+// ever hit (recordView fires once per page view, gated by isPrerendering()).
+async function handleView(slug, env, request) {
   if (!SLUG_PATTERN.test(slug)) {
     return json({ error: 'invalid slug' }, 400);
   }
+
+  const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+  const rateKey = `${VIEW_RATE_PREFIX}${ip}`;
+  const recent = Number((await env.VIEWS.get(rateKey)) || '0');
+  if (recent >= VIEW_RATE_MAX) {
+    return json({ error: 'too many requests' }, 429);
+  }
+  await env.VIEWS.put(rateKey, String(recent + 1), { expirationTtl: VIEW_RATE_WINDOW_SECONDS });
+
   const [views, weekly] = await Promise.all([
     bump(env, `${VIEWS_PREFIX}${slug}`),
     bump(env, `${WEEKLY_PREFIX}${slug}`),
@@ -835,7 +857,7 @@ export default {
 
     const viewMatch = url.pathname.match(/^\/api\/view\/([a-z-]+)$/);
     if (viewMatch && request.method === 'POST') {
-      return handleView(viewMatch[1], env);
+      return handleView(viewMatch[1], env, request);
     }
 
     if (url.pathname === '/api/views' && request.method === 'GET') {

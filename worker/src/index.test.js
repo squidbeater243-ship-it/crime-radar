@@ -366,6 +366,60 @@ describe('worker.fetch routing', () => {
       const res = await worker.fetch(new Request('https://api.test/api/view/Not_Valid!', { method: 'POST' }), makeEnv(), noopCtx);
       expect(res.status).toBe(404);
     });
+
+    // The route only accepts [a-z-]+ (no digits), so distinct test slugs
+    // have to be generated as letter combinations rather than "slug0",
+    // "slug1", etc.
+    function letterSlug(i) {
+      const a = 'a'.charCodeAt(0);
+      return `z${String.fromCharCode(a + Math.floor(i / 26))}${String.fromCharCode(a + (i % 26))}`;
+    }
+
+    it('rate-limits an IP after 30 requests in the window, independent of slug', async () => {
+      // No auth, no validation that a slug corresponds to a real state, and
+      // the counters it writes never expire -- without a rate limit this
+      // endpoint would let anyone mint unlimited permanent KV keys for free.
+      const env = makeEnv();
+      const req = (slug) =>
+        new Request(`https://api.test/api/view/${slug}`, { method: 'POST', headers: { 'cf-connecting-ip': '1.2.3.4' } });
+
+      for (let i = 0; i < 30; i += 1) {
+        const res = await worker.fetch(req(letterSlug(i)), env, noopCtx);
+        expect(res.status).toBe(200);
+      }
+
+      const blocked = await worker.fetch(req(letterSlug(30)), env, noopCtx);
+      expect(blocked.status).toBe(429);
+    });
+
+    it('does not create views:/weekly: keys for a request rejected by the rate limit', async () => {
+      const env = makeEnv();
+      const req = (slug) =>
+        new Request(`https://api.test/api/view/${slug}`, { method: 'POST', headers: { 'cf-connecting-ip': '5.6.7.8' } });
+      for (let i = 0; i < 30; i += 1) await worker.fetch(req(letterSlug(i)), env, noopCtx);
+
+      await worker.fetch(req('shouldnotcount'), env, noopCtx);
+      expect(await env.VIEWS.get('views:shouldnotcount')).toBeNull();
+    });
+
+    it('tracks separate IPs independently', async () => {
+      const env = makeEnv();
+      for (let i = 0; i < 30; i += 1) {
+        await worker.fetch(
+          new Request(`https://api.test/api/view/${letterSlug(i)}`, { method: 'POST', headers: { 'cf-connecting-ip': '9.9.9.9' } }),
+          env,
+          noopCtx
+        );
+      }
+      // A different IP should still get through even though 9.9.9.9 is now
+      // at its cap.
+      const res = await worker.fetch(
+        new Request('https://api.test/api/view/minnesota', { method: 'POST', headers: { 'cf-connecting-ip': '1.1.1.1' } }),
+        env,
+        noopCtx
+      );
+      expect(res.status).toBe(200);
+    });
   });
 
   describe('GET /api/views and /api/trending', () => {
