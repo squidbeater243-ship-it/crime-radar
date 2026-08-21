@@ -1207,24 +1207,22 @@ describe('runAlertCheck resilience (via worker.scheduled)', () => {
     await subscribeDirect(env, 'b@example.com', 'Minnesota', 'Rochester');
 
     let call = 0;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url) => {
-        const href = String(url);
-        if (href.includes('gnews.io')) {
-          call += 1;
-          if (call === 1) throw new TypeError('network down');
-          return {
-            ok: true,
-            json: async () => ({ articles: [{ title: 'Robbery downtown', url: 'https://a', source: { name: 'A' }, publishedAt: '2026-01-01' }] }),
-          };
-        }
-        if (href.includes('resend.com')) {
-          return { ok: true, json: async () => ({}) };
-        }
-        return { ok: true, json: async () => ({ results: [] }) };
-      })
-    );
+    const fetchMock = vi.fn(async (url) => {
+      const href = String(url);
+      if (href.includes('gnews.io')) {
+        call += 1;
+        if (call === 1) throw new TypeError('network down');
+        return {
+          ok: true,
+          json: async () => ({ articles: [{ title: 'Robbery downtown', url: 'https://a', source: { name: 'A' }, publishedAt: '2026-01-01' }] }),
+        };
+      }
+      if (href.includes('resend.com')) {
+        return { ok: true, json: async () => ({}) };
+      }
+      return { ok: true, json: async () => ({ results: [] }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
     const waited = [];
     const ctx = { waitUntil: (p) => waited.push(p) };
@@ -1233,8 +1231,10 @@ describe('runAlertCheck resilience (via worker.scheduled)', () => {
 
     // The first location's fetch failure must not stop the second location
     // from being checked and alerted.
+    const resendCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('resend.com'));
+    expect(resendCalls).toHaveLength(1);
     const keys = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('sent:'));
-    expect(keys.some((k) => k.includes('rochester'))).toBe(true);
+    expect(keys.some((k) => k.includes('minnesota'))).toBe(true);
   });
 
   it('still records the article as sent and keeps going when one recipient send throws', async () => {
@@ -1274,6 +1274,44 @@ describe('runAlertCheck resilience (via worker.scheduled)', () => {
     const keys = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('sent:'));
     expect(keys).toHaveLength(1);
     expect(env.VIEWS.ttls.get(keys[0])).toBe(60 * 60 * 24 * 30);
+  });
+
+  it('does not double-email a statewide-tier alert when two home cities both surface the same article', async () => {
+    // The dedup key used to be scoped per (home city, article), not per
+    // (state, article). A statewide-tier story is exactly the kind of thing
+    // likely to rank in more than one city's "<city> crime" search within
+    // the same state -- each home-city iteration that also sees it treated
+    // it as a brand new, never-sent article, and re-sent it to every
+    // same-state subscriber it already sent to under a different home city.
+    const env = makeEnv();
+    await subscribeDirect(env, 'a@example.com', 'Minnesota', 'Minneapolis');
+    await subscribeDirect(env, 'b@example.com', 'Minnesota', 'Rochester');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const href = String(url);
+        if (href.includes('gnews.io')) {
+          // Same article, regardless of which city's query asked for it.
+          return {
+            ok: true,
+            json: async () => ({
+              articles: [{ title: 'Active shooter reported at shopping mall', url: 'https://a/statewide-story', source: { name: 'A' }, publishedAt: '2026-01-01' }],
+            }),
+          };
+        }
+        if (href.includes('resend.com')) return { ok: true, json: async () => ({}) };
+        return { ok: true, json: async () => ({ results: [] }) };
+      })
+    );
+
+    const waited = [];
+    const ctx = { waitUntil: (p) => waited.push(p) };
+    await worker.scheduled({ cron: '0 12 * * *' }, env, ctx);
+    await Promise.all(waited);
+
+    const resendCalls = (globalThis.fetch.mock.calls || []).filter(([u]) => String(u).includes('resend.com'));
+    expect(resendCalls).toHaveLength(2);
   });
 });
 

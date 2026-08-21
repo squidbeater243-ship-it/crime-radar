@@ -924,7 +924,17 @@ async function runAlertCheck(env) {
       // error boundary, same as the per-recipient send failures below.
       try {
         const hash = await sha256Hex(article.link);
-        const sentKey = `${SENT_PREFIX}${state.toLowerCase()}:${city.toLowerCase()}:${hash}`;
+        // Scoped to state, not the iterating home city. Each home city's
+        // "<city> crime" search is independent, so a statewide/regional
+        // story is quite likely to surface in more than one same-state
+        // city's search results -- scoping this key per home city meant
+        // each of those home-city iterations saw the article as "never
+        // sent" and re-sent it to every same-state subscriber it had
+        // already reached under a different home city. A different state
+        // legitimately has its own separate subscriber audience and must
+        // still get its own independent chance to send this article, so
+        // the state itself stays part of the key.
+        const sentKey = `${SENT_PREFIX}${state.toLowerCase()}:${hash}`;
         const alreadySent = await env.VIEWS.get(sentKey);
         if (alreadySent) continue;
 
