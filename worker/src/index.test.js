@@ -104,6 +104,22 @@ describe('getSeverityTier', () => {
     // happens to be checked first for an unrelated match.
     expect(getSeverityTier('Mass shooting and robbery spree downtown')).toBe('statewide');
   });
+
+  it.each([
+    'City program teaches job skills to at-risk youth',
+    'School district expands skilled trades curriculum',
+  ])('does not misfire on %j (contains "kill(s|ed)" only as a substring of an unrelated word)', (title) => {
+    // 'killed'/'kills' are literal substrings of "skilled"/"skills" -- plain
+    // substring matching would misclassify routine headlines like these as
+    // crime alerts.
+    expect(getSeverityTier(title)).toBeNull();
+  });
+
+  it('still matches a word-stem variant not spelled out separately in the keyword list', () => {
+    // 'fatal' has no separate 'fatally' entry -- the fix must not require a
+    // boundary at the END of the keyword too, or this regresses.
+    expect(getSeverityTier('Two hurt, one fatally, in overnight crash')).toBe('regional');
+  });
 });
 
 describe('haversineMiles', () => {

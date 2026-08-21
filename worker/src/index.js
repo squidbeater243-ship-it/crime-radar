@@ -650,15 +650,29 @@ const STATEWIDE_KEYWORDS = [
 
 const TIER_RADIUS_MILES = { regional: 60 };
 
-function matchesAny(lower, keywords) {
-  return keywords.some((kw) => lower.includes(kw));
+// Plain substring matching (lower.includes(kw)) means a keyword can trigger
+// inside an unrelated word that merely has extra characters glued onto the
+// front of it -- e.g. 'killed' is a literal substring of "skilled" and
+// 'kills' of "skills", so a routine headline like "City program teaches job
+// skills to at-risk youth" would misfire a REGIONAL-tier fake crime alert.
+// A \b boundary only at the START of each keyword blocks that (no boundary
+// exists between the 's' of "skilled" and the 'k' it's glued to) while
+// deliberately NOT anchoring the end, so word-stem variants a plain keyword
+// list doesn't spell out separately -- 'fatal' matching "fatally", 'arson'
+// matching "arsonist" -- still work the way substring matching always did.
+function toWordBoundaryPattern(keywords) {
+  const escaped = keywords.map((kw) => kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`\\b(?:${escaped.join('|')})`, 'i');
 }
 
+const LOCAL_KEYWORDS_RE = toWordBoundaryPattern(LOCAL_KEYWORDS);
+const REGIONAL_KEYWORDS_RE = toWordBoundaryPattern(REGIONAL_KEYWORDS);
+const STATEWIDE_KEYWORDS_RE = toWordBoundaryPattern(STATEWIDE_KEYWORDS);
+
 export function getSeverityTier(title) {
-  const lower = title.toLowerCase();
-  if (matchesAny(lower, STATEWIDE_KEYWORDS)) return 'statewide';
-  if (matchesAny(lower, REGIONAL_KEYWORDS)) return 'regional';
-  if (matchesAny(lower, LOCAL_KEYWORDS)) return 'local';
+  if (STATEWIDE_KEYWORDS_RE.test(title)) return 'statewide';
+  if (REGIONAL_KEYWORDS_RE.test(title)) return 'regional';
+  if (LOCAL_KEYWORDS_RE.test(title)) return 'local';
   return null;
 }
 
