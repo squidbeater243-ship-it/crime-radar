@@ -290,7 +290,25 @@ export default function StateDetail() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={arrestsByRace} margin={{ left: 0, right: 8, top: 20, bottom: 24 }}>
                   <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                  <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" />
+                  {/* The full FBI category names ("American Indian / Alaska
+                      Native", "Asian / Pacific Islander") don't fit on a
+                      mobile-width axis at any reasonable rotation angle
+                      without wrapping and overlapping into an unreadable
+                      mess -- abbreviate the tick labels using the same
+                      short forms the Census Bureau/BJS use for these
+                      categories. The full name is still in the tooltip on
+                      hover/tap, so nothing is actually lost. */}
+                  <XAxis
+                    dataKey="name"
+                    stroke="#94a3b8"
+                    tick={{ fontSize: 11 }}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    tickFormatter={(name) =>
+                      ({ 'American Indian / Alaska Native': 'AI/AN', 'Asian / Pacific Islander': 'Asian/PI' })[name] || name
+                    }
+                  />
                   <YAxis stroke="#94a3b8" />
                   <Tooltip cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(148,163,184,0.2)' }} itemStyle={{ color: '#e2e8f0' }} labelStyle={{ color: '#94a3b8' }} formatter={(value) => `${value}%`} />
                   {/* Two of the four categories are ~2% vs. ~64%/~32% for
