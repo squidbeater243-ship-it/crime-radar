@@ -9,6 +9,14 @@ const ARCHIVE_PREFIX = 'archive:';
 const ARCHIVE_TTL_SECONDS = 60 * 60 * 24 * 365;
 const LOCATION_PATTERN = /^[a-zA-Z0-9 .'-]{1,80}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Unlike LOCATION_PATTERN (bounded at 80 chars), the shape-only regex above
+// has no upper bound -- a pattern-valid but absurdly long string (10,000+
+// chars) would pass it, get written to KV, and get sent to Resend for
+// nothing. 254 is RFC 5321's practical maximum total email length.
+const EMAIL_MAX_LENGTH = 254;
+function isValidEmail(email) {
+  return email.length <= EMAIL_MAX_LENGTH && EMAIL_PATTERN.test(email);
+}
 const SUB_PREFIX = 'sub:';
 const NEWS_CACHE_TTL_SECONDS = 600;
 const PENDING_PREFIX = 'pending:';
@@ -334,7 +342,7 @@ async function handleSubscribe(request, env) {
   const state = (body.state || '').trim();
   const city = (body.city || '').trim();
 
-  if (!EMAIL_PATTERN.test(email)) {
+  if (!isValidEmail(email)) {
     return json({ error: 'invalid email' }, 400);
   }
   if (!LOCATION_PATTERN.test(city) || !LOCATION_PATTERN.test(state)) {
@@ -456,7 +464,7 @@ async function performUnsubscribe(searchParams, env) {
   const state = (searchParams.get('state') || '').trim();
   const city = (searchParams.get('city') || '').trim();
 
-  if (!EMAIL_PATTERN.test(email) || !LOCATION_PATTERN.test(city) || !LOCATION_PATTERN.test(state)) {
+  if (!isValidEmail(email) || !LOCATION_PATTERN.test(city) || !LOCATION_PATTERN.test(state)) {
     return { ok: false };
   }
 

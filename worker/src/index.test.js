@@ -549,6 +549,18 @@ describe('worker.fetch routing', () => {
       expect(res.status).toBe(400);
     });
 
+    it('rejects a pattern-valid but absurdly long email instead of writing it to KV', async () => {
+      // The shape-only regex has no upper bound on its own -- a 10,000-char
+      // local part still matches [^\s@]+@[^\s@]+\.[^\s@]+. Without a length
+      // cap this would get written to KV and sent to Resend for nothing.
+      const req = new Request('https://api.test/api/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ email: `${'a'.repeat(300)}@example.com`, state: 'MN', city: 'Duluth' }),
+      });
+      const res = await worker.fetch(req, makeEnv(), noopCtx);
+      expect(res.status).toBe(400);
+    });
+
     it('rejects a malformed JSON body instead of throwing', async () => {
       const req = new Request('https://api.test/api/subscribe', { method: 'POST', body: '{not json' });
       const res = await worker.fetch(req, makeEnv(), noopCtx);
