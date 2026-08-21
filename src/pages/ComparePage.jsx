@@ -215,9 +215,9 @@ export default function ComparePage() {
 
           <div className="mt-4 h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData} outerRadius="72%">
+              <RadarChart data={radarData} outerRadius="58%">
                 <PolarGrid stroke="#334155" />
-                <PolarAngleAxis dataKey="metric" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                <PolarAngleAxis dataKey="metric" tick={{ fill: '#94a3b8', fontSize: 11 }} />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#64748b', fontSize: 10 }} />
                 <Radar name={leftState.displayName} dataKey="left" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.35} />
                 <Radar name={rightState.displayName} dataKey="right" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.35} />
