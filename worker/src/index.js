@@ -139,7 +139,7 @@ async function handleNews(request, env, ctx) {
   return response;
 }
 
-function subKey(state, city, email) {
+export function subKey(state, city, email) {
   return `${SUB_PREFIX}${state.toLowerCase()}:${city.toLowerCase()}:${email.toLowerCase()}`;
 }
 
@@ -149,7 +149,7 @@ function subKey(state, city, email) {
 // capital. Since abbreviated forms are how people actually type these city
 // names, expand the common ones before querying. Query-only: the value
 // stored on the subscription record stays exactly what the user typed.
-function expandCityAbbreviations(city) {
+export function expandCityAbbreviations(city) {
   return city
     .replace(/\bSt\.?\s/gi, 'Saint ')
     .replace(/\bFt\.?\s/gi, 'Fort ')
@@ -162,7 +162,7 @@ function expandCityAbbreviations(city) {
 // A failed lookup just leaves lat/lon null on the record; the subscriber
 // still gets alerts for their own city, they just can't receive nearby
 // (regional-tier) fan-out.
-async function geocodeCity(city, state) {
+export async function geocodeCity(city, state) {
   try {
     const queryName = expandCityAbbreviations(city);
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(queryName)}&count=10&language=en&format=json`;
@@ -348,7 +348,7 @@ function matchesAny(lower, keywords) {
   return keywords.some((kw) => lower.includes(kw));
 }
 
-function getSeverityTier(title) {
+export function getSeverityTier(title) {
   const lower = title.toLowerCase();
   if (matchesAny(lower, STATEWIDE_KEYWORDS)) return 'statewide';
   if (matchesAny(lower, REGIONAL_KEYWORDS)) return 'regional';
@@ -356,7 +356,7 @@ function getSeverityTier(title) {
   return null;
 }
 
-function haversineMiles(lat1, lon1, lat2, lon2) {
+export function haversineMiles(lat1, lon1, lat2, lon2) {
   const toRad = (deg) => (deg * Math.PI) / 180;
   const EARTH_RADIUS_MILES = 3958.8;
   const dLat = toRad(lat2 - lat1);
@@ -501,29 +501,39 @@ async function sendAlertEmail(env, email, incidentState, incidentCity, article, 
         ? `near ${subCity}, ${subState}`
         : `${incidentCity}, ${incidentState}`;
 
-  const resp = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: 'Crime Radar Alerts <alerts@mail.platinumsoftwaremn.com>',
-      to: [email],
-      subject: `Crime Radar alert: ${subjectLocation}`,
-      html: renderAlertEmailHtml({
-        incidentState,
-        incidentCity,
-        subState,
-        subCity,
-        article,
-        unsubscribeUrl,
-        scope,
-        distanceMiles,
+  // A network-level failure here (as opposed to a non-2xx response, which
+  // just falls through to `resp.ok`) must not escape as a thrown exception:
+  // runAlertCheck calls this once per recipient in a loop across every
+  // subscribed location, and an uncaught throw here would abort every
+  // remaining location's alerts for that entire cron run, not just this one
+  // send.
+  try {
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Crime Radar Alerts <alerts@mail.platinumsoftwaremn.com>',
+        to: [email],
+        subject: `Crime Radar alert: ${subjectLocation}`,
+        html: renderAlertEmailHtml({
+          incidentState,
+          incidentCity,
+          subState,
+          subCity,
+          article,
+          unsubscribeUrl,
+          scope,
+          distanceMiles,
+        }),
       }),
-    }),
-  });
-  return resp.ok;
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
 }
 
 async function runAlertCheck(env) {
@@ -554,51 +564,60 @@ async function runAlertCheck(env) {
 
     for (const { article, tier } of tiered) {
       if (!article.link) continue;
-      const hash = await sha256Hex(article.link);
-      const sentKey = `${SENT_PREFIX}${state.toLowerCase()}:${city.toLowerCase()}:${hash}`;
-      const alreadySent = await env.VIEWS.get(sentKey);
-      if (alreadySent) continue;
 
-      // Always the home city's own subscribers, plus (for regional/statewide
-      // tiers) other same-state subscribers within the tier's reach.
-      const recipients = new Map();
-      for (const email of emails) {
-        recipients.set(email, { scope: 'home', distanceMiles: 0, subState: state, subCity: city });
-      }
+      // A KV hiccup on any one article (dedup lookup, dedup write) must not
+      // abort the remaining articles for this location, let alone the
+      // remaining locations in this cron run — so each article gets its own
+      // error boundary, same as the per-recipient send failures below.
+      try {
+        const hash = await sha256Hex(article.link);
+        const sentKey = `${SENT_PREFIX}${state.toLowerCase()}:${city.toLowerCase()}:${hash}`;
+        const alreadySent = await env.VIEWS.get(sentKey);
+        if (alreadySent) continue;
 
-      if (tier !== 'local') {
-        for (const other of locations) {
-          if (other === home) continue;
-          if (other.state.toLowerCase() !== state.toLowerCase()) continue;
+        // Always the home city's own subscribers, plus (for regional/statewide
+        // tiers) other same-state subscribers within the tier's reach.
+        const recipients = new Map();
+        for (const email of emails) {
+          recipients.set(email, { scope: 'home', distanceMiles: 0, subState: state, subCity: city });
+        }
 
-          let distanceMiles = null;
-          if (home.lat != null && home.lon != null && other.lat != null && other.lon != null) {
-            distanceMiles = haversineMiles(home.lat, home.lon, other.lat, other.lon);
-          }
+        if (tier !== 'local') {
+          for (const other of locations) {
+            if (other === home) continue;
+            if (other.state.toLowerCase() !== state.toLowerCase()) continue;
 
-          const included =
-            tier === 'statewide' ? true : distanceMiles != null && distanceMiles <= TIER_RADIUS_MILES.regional;
-          if (!included) continue;
+            let distanceMiles = null;
+            if (home.lat != null && home.lon != null && other.lat != null && other.lon != null) {
+              distanceMiles = haversineMiles(home.lat, home.lon, other.lat, other.lon);
+            }
 
-          for (const email of other.emails) {
-            if (!recipients.has(email)) {
-              recipients.set(email, { scope: tier, distanceMiles, subState: other.state, subCity: other.city });
+            const included =
+              tier === 'statewide' ? true : distanceMiles != null && distanceMiles <= TIER_RADIUS_MILES.regional;
+            if (!included) continue;
+
+            for (const email of other.emails) {
+              if (!recipients.has(email)) {
+                recipients.set(email, { scope: tier, distanceMiles, subState: other.state, subCity: other.city });
+              }
             }
           }
         }
-      }
 
-      let successCount = 0;
-      for (const [email, info] of recipients) {
-        const ok = await sendAlertEmail(env, email, state, city, article, info);
-        if (ok) successCount += 1;
-      }
+        let successCount = 0;
+        for (const [email, info] of recipients) {
+          const ok = await sendAlertEmail(env, email, state, city, article, info);
+          if (ok) successCount += 1;
+        }
 
-      if (successCount > 0) {
-        summary.sent += successCount;
-        await env.VIEWS.put(sentKey, '1', { expirationTtl: SENT_TTL_SECONDS });
-      } else {
-        summary.errors.push(`send failed for ${article.title}`);
+        if (successCount > 0) {
+          summary.sent += successCount;
+          await env.VIEWS.put(sentKey, '1', { expirationTtl: SENT_TTL_SECONDS });
+        } else {
+          summary.errors.push(`send failed for ${article.title}`);
+        }
+      } catch (e) {
+        summary.errors.push(`processing failed for ${article.title}: ${e.message}`);
       }
     }
   }
