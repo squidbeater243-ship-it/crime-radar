@@ -3,10 +3,8 @@ import { AnimatePresence } from 'framer-motion';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import ScrollToTop from './components/ScrollToTop';
-import SoundToggle from './components/SoundToggle';
 import NavBar from './components/NavBar';
 import SignupTakeover from './components/SignupTakeover';
-import AlertsFab from './components/AlertsFab';
 import Footer from './components/Footer';
 import PageTransition from './components/PageTransition';
 import prefsService from './services/prefsService';
@@ -49,8 +47,9 @@ function AnimatedRoutes() {
 }
 
 // `/og/*` routes render a bare 1200x630 share-image surface (see OgCard) —
-// none of the site's normal chrome (nav, signup modal, sound toggle, alerts
-// FAB) belongs in that screenshot, so it's skipped entirely for those paths.
+// none of the site's normal chrome (nav, signup modal, sound/alerts
+// controls) belongs in that screenshot, so it's skipped entirely for those
+// paths.
 function AppShell({ signupOpen, onCloseSignup, onAlertsClick }) {
   const location = useLocation();
   const isOgRoute = location.pathname.startsWith('/og/');
@@ -58,10 +57,8 @@ function AppShell({ signupOpen, onCloseSignup, onAlertsClick }) {
   return (
     <>
       <ScrollToTop />
-      {!isOgRoute && <SoundToggle />}
-      {!isOgRoute && <NavBar />}
+      {!isOgRoute && <NavBar onAlertsClick={onAlertsClick} />}
       {!isOgRoute && <SignupTakeover open={signupOpen} onClose={onCloseSignup} />}
-      {!isOgRoute && <AlertsFab onClick={onAlertsClick} />}
       <Suspense fallback={<RouteFallback />}>
         <AnimatedRoutes />
       </Suspense>

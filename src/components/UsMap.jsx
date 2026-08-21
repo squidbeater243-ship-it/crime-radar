@@ -276,15 +276,12 @@ export default function UsMap() {
         <span>Higher crime</span>
       </div>
 
-      <div className="mt-3 grid gap-2 text-xs text-slate-400 sm:grid-cols-2">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-2 w-2 rounded-full bg-cyan-400" />
-          Hover a state for a quick preview
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-2 w-2 rounded-full bg-white/20" />
-          Click a state to zoom in and open its report
-        </div>
+      {/* Click-to-open is already stated in the header caption above the map
+          -- repeating it here too was redundant. Hover-preview is the one
+          piece of information not said anywhere else on the card. */}
+      <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+        <span className="inline-flex h-2 w-2 rounded-full bg-cyan-400" />
+        Hover a state for a quick preview
       </div>
     </div>
   );

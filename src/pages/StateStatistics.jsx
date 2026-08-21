@@ -100,7 +100,9 @@ export default function StateStatistics() {
             <UsMap />
           </Suspense>
         </div>
-        <SourcesButton />
+        <div className="mt-6">
+          <SourcesButton />
+        </div>
       </main>
     </div>
   );

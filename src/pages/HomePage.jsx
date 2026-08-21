@@ -321,7 +321,11 @@ export default function HomePage() {
         )}
 
         {status === 'idle' && (
-          <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center text-sm text-slate-400">
+          // A solid-enough background so RadarBackdrop's decorative ring
+          // (which passes directly behind this box) doesn't read as a stray
+          // line cutting across the text -- backdrop-blur alone was too
+          // weak to soften a hairline stroke at this scale.
+          <div className="rounded-3xl border border-dashed border-white/10 bg-slate-950/60 p-8 text-center text-sm text-slate-400">
             Enter a state and city above to scan the area.
           </div>
         )}

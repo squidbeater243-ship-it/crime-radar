@@ -26,7 +26,7 @@ export default function SoundToggle() {
       aria-label={enabled ? 'Mute sound effects' : 'Enable sound effects'}
       aria-pressed={enabled}
       title={enabled ? 'Sound on' : 'Sound off'}
-      className="fixed left-5 bottom-5 z-50 inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/80 text-slate-300 shadow-lg backdrop-blur transition hover:bg-slate-900/95 hover:text-white"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/5 hover:text-white"
     >
       {enabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
     </button>
