@@ -578,6 +578,49 @@ describe('worker.fetch routing', () => {
       await worker.fetch(new Request('https://api.test/api/news?city=Duluth&state=MN'), makeEnv(), noopCtx);
       expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
     });
+
+    it('serves a cache hit directly without calling GNews again', async () => {
+      // A real cache-hit test, not just a coverage tick: fetch is stubbed to
+      // fail the test if called at all, so this only passes if handleNews
+      // genuinely returns the cached response instead of re-fetching.
+      const cachedBody = JSON.stringify({ query: 'Duluth crime', items: [{ title: 'Cached article' }] });
+      vi.stubGlobal('caches', {
+        default: {
+          match: vi.fn().mockResolvedValue(new Response(cachedBody, { status: 200, headers: { 'Content-Type': 'application/json' } })),
+          put: vi.fn(),
+        },
+      });
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('GNews should not be called on a cache hit')));
+
+      const res = await worker.fetch(new Request('https://api.test/api/news?city=Duluth&state=MN'), makeEnv(), noopCtx);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ query: 'Duluth crime', items: [{ title: 'Cached article' }] });
+    });
+
+    it('reads and writes the cache under the same key, normalized to lowercase', async () => {
+      // The cache key is built from city/state independently at the match()
+      // call and again for the put() call -- if those two constructions ever
+      // drifted (e.g. one lowercased and the other didn't), every request
+      // would be a permanent cache miss without any test noticing.
+      const matchMock = vi.fn().mockResolvedValue(undefined);
+      const putMock = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal('caches', { default: { match: matchMock, put: putMock } });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: true, json: async () => ({ articles: [] }) })
+      );
+
+      const waited = [];
+      const ctx = { waitUntil: (p) => waited.push(p) };
+      await worker.fetch(new Request('https://api.test/api/news?city=Duluth&state=MN'), makeEnv(), ctx);
+      await Promise.all(waited);
+
+      const matchedKey = matchMock.mock.calls[0][0];
+      const putKey = putMock.mock.calls[0][0];
+      expect(matchedKey.url).toBe(putKey.url);
+      expect(matchedKey.url).toContain('city=duluth');
+      expect(matchedKey.url).toContain('state=mn');
+    });
   });
 
   describe('POST /api/subscribe (request confirmation)', () => {
