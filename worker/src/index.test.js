@@ -1038,6 +1038,18 @@ describe('worker.fetch routing', () => {
       expect(await env.VIEWS.get(subKey('Minnesota', 'Duluth', 'user@example.com'))).toBeNull();
     });
 
+    it('returns a JSON 400 for an invalid email via the DELETE endpoint, without touching KV', async () => {
+      const env = makeEnv();
+      await subscribe(env);
+
+      const url = 'https://api.test/api/subscribe?' + new URLSearchParams({ email: 'not-an-email', state: 'Minnesota', city: 'Duluth' });
+      const res = await worker.fetch(new Request(url, { method: 'DELETE' }), env, noopCtx);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: 'invalid request' });
+      // The real subscriber's record must be untouched by the rejected request.
+      expect(await env.VIEWS.get(subKey('Minnesota', 'Duluth', 'user@example.com'))).not.toBeNull();
+    });
+
     it('removes the subscription and renders a confirmation page via the one-click email link', async () => {
       const env = makeEnv();
       await subscribe(env);
@@ -1372,6 +1384,66 @@ describe('runAlertCheck resilience (via worker.scheduled)', () => {
 
     const resendCalls = (globalThis.fetch.mock.calls || []).filter(([u]) => String(u).includes('resend.com'));
     expect(resendCalls).toHaveLength(2);
+  });
+
+  it('skips the check entirely and logs a clear reason when API keys are missing, without touching KV', async () => {
+    const env = makeEnv({ RESEND_API_KEY: undefined, GNEWS_API_KEY: undefined });
+    await subscribeDirect(env, 'a@example.com', 'Minnesota', 'Duluth');
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const waited = [];
+    const ctx = { waitUntil: (p) => waited.push(p) };
+    await worker.scheduled({ cron: '0 12 * * *' }, env, ctx);
+    await Promise.all(waited);
+
+    const [, loggedJson] = logSpy.mock.calls.find(([label]) => label === 'runAlertCheck');
+    const logged = JSON.parse(loggedJson);
+    expect(logged.locations).toBe(0);
+    expect(logged.errors).toEqual(['missing API key(s)']);
+    // Confirms it returned before ever calling getSubscribersByLocation --
+    // no sent:/rate-limit/etc. keys should exist from this run.
+    expect([...env.VIEWS.store.keys()].filter((k) => k.startsWith('sent:'))).toHaveLength(0);
+  });
+
+  it('never fans a statewide-tier alert out to a subscriber in a different state', async () => {
+    // The recipient loop filters same-state locations by
+    // other.state.toLowerCase() !== state.toLowerCase() -- if that
+    // comparison were ever wrong (e.g. comparing to the wrong variable,
+    // or dropped entirely), a statewide alert for one state could leak to
+    // subscribers in a completely unrelated state.
+    const env = makeEnv();
+    await subscribeDirect(env, 'mn@example.com', 'Minnesota', 'Duluth');
+    await subscribeDirect(env, 'wi@example.com', 'Wisconsin', 'Madison');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const href = String(url);
+        if (href.includes('gnews.io')) {
+          return {
+            ok: true,
+            json: async () => ({
+              articles: [{ title: 'Active shooter reported at shopping mall', url: 'https://a/statewide', source: { name: 'A' }, publishedAt: '2026-01-01' }],
+            }),
+          };
+        }
+        if (href.includes('resend.com')) return { ok: true, json: async () => ({}) };
+        return { ok: true, json: async () => ({ results: [] }) };
+      })
+    );
+
+    const waited = [];
+    const ctx = { waitUntil: (p) => waited.push(p) };
+    await worker.scheduled({ cron: '0 12 * * *' }, env, ctx);
+    await Promise.all(waited);
+
+    const resendCalls = (globalThis.fetch.mock.calls || []).filter(([u]) => String(u).includes('resend.com'));
+    // Two home-city iterations (Duluth, Madison) each independently see the
+    // article and each sends only to their own state's subscriber -- 2
+    // sends total, never one recipient receiving the other state's alert.
+    expect(resendCalls).toHaveLength(2);
+    const recipientEmails = resendCalls.map(([, opts]) => JSON.parse(opts.body).to[0]);
+    expect(recipientEmails.sort()).toEqual(['mn@example.com', 'wi@example.com']);
   });
 });
 
