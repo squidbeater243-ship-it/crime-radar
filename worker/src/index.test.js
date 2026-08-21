@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker, {
+  confirmSubscribePage,
   escapeHtml,
   expandCityAbbreviations,
   formatArticleDate,
@@ -198,6 +199,25 @@ describe('unsubscribePage', () => {
   it('renders an error state without a location when the link is invalid', () => {
     const markup = unsubscribePage({ ok: false });
     expect(markup).toContain("Couldn't process that link");
+  });
+});
+
+describe('confirmSubscribePage', () => {
+  it('renders a confirmation for a successful subscribe', () => {
+    const markup = confirmSubscribePage({ ok: true, state: 'Minnesota', city: 'Duluth' });
+    expect(markup).toContain("You're subscribed");
+    expect(markup).toContain('Duluth, Minnesota');
+  });
+
+  it('escapes city/state so a malicious query string cannot inject markup', () => {
+    const markup = confirmSubscribePage({ ok: true, state: 'MN', city: '<img src=x onerror=alert(1)>' });
+    expect(markup).not.toContain('<img src=x');
+    expect(markup).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
+  it('renders an error state without a location when the token is invalid or expired', () => {
+    const markup = confirmSubscribePage({ ok: false });
+    expect(markup).toContain("Couldn't confirm that link");
   });
 });
 
