@@ -835,18 +835,24 @@ describe('worker.fetch routing', () => {
       return pendingKey.slice('pending:'.length);
     }
 
-    it('activates the subscription and consumes the token', async () => {
+    it('renders a confirm-button prompt WITHOUT activating the subscription or consuming the token', async () => {
+      // A bare GET must be side-effect-free -- email security gateways
+      // (Outlook Safe Links, Proofpoint, etc.) auto-fetch every link in an
+      // email to scan it, before the recipient ever opens the message. If
+      // GET alone activated the subscription, that automated scan would
+      // silently confirm a signup the real recipient never clicked.
       const env = makeEnv();
       const token = await requestSubscription(env);
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
 
       const res = await worker.fetch(new Request(`https://api.test/api/subscribe/confirm?token=${token}`), env, noopCtx);
       expect(res.status).toBe(200);
-      expect(await res.text()).toContain("You're subscribed");
+      const text = await res.text();
+      expect(text).toContain('Confirm your alerts');
+      expect(text).toContain(`value="${token}"`);
+      expect(text).toContain('method="POST"');
 
-      const stored = JSON.parse(await env.VIEWS.get(subKey('Minnesota', 'Duluth', 'user@example.com')));
-      expect(stored.email).toBe('user@example.com');
-      expect(await env.VIEWS.get(`pending:${token}`)).toBeNull();
+      expect(await env.VIEWS.get(subKey('Minnesota', 'Duluth', 'user@example.com'))).toBeNull();
+      expect(await env.VIEWS.get(`pending:${token}`)).not.toBeNull();
     });
 
     it('rejects a missing token', async () => {
@@ -863,14 +869,65 @@ describe('worker.fetch routing', () => {
       );
       expect(res.status).toBe(400);
     });
+  });
+
+  describe('POST /api/subscribe/confirm', () => {
+    async function requestSubscription(env, email = 'user@example.com', state = 'Minnesota', city = 'Duluth') {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+      await worker.fetch(
+        new Request('https://api.test/api/subscribe', { method: 'POST', body: JSON.stringify({ email, state, city }) }),
+        env,
+        noopCtx
+      );
+      const [pendingKey] = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('pending:'));
+      vi.unstubAllGlobals();
+      return pendingKey.slice('pending:'.length);
+    }
+
+    function submitConfirm(token, env) {
+      const body = new URLSearchParams({ token });
+      return worker.fetch(
+        new Request('https://api.test/api/subscribe/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString(),
+        }),
+        env,
+        noopCtx
+      );
+    }
+
+    it('activates the subscription and consumes the token', async () => {
+      const env = makeEnv();
+      const token = await requestSubscription(env);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
+
+      const res = await submitConfirm(token, env);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain("You're subscribed");
+
+      const stored = JSON.parse(await env.VIEWS.get(subKey('Minnesota', 'Duluth', 'user@example.com')));
+      expect(stored.email).toBe('user@example.com');
+      expect(await env.VIEWS.get(`pending:${token}`)).toBeNull();
+    });
+
+    it('rejects a missing token', async () => {
+      const res = await submitConfirm('', makeEnv());
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects an unknown token', async () => {
+      const res = await submitConfirm('not-a-real-token', makeEnv());
+      expect(res.status).toBe(400);
+    });
 
     it('cannot be replayed a second time', async () => {
       const env = makeEnv();
       const token = await requestSubscription(env);
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
 
-      await worker.fetch(new Request(`https://api.test/api/subscribe/confirm?token=${token}`), env, noopCtx);
-      const second = await worker.fetch(new Request(`https://api.test/api/subscribe/confirm?token=${token}`), env, noopCtx);
+      await submitConfirm(token, env);
+      const second = await submitConfirm(token, env);
       expect(second.status).toBe(400);
     });
   });

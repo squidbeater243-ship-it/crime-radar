@@ -414,23 +414,50 @@ async function handleSubscribe(request, env) {
   return json({ success: true, pending: true });
 }
 
+async function resolvePendingSubscription(token, env) {
+  if (!token) return null;
+  const pendingKey = `${PENDING_PREFIX}${token}`;
+  const raw = await env.VIEWS.get(pendingKey);
+  if (!raw) return null;
+  try {
+    return { pendingKey, ...JSON.parse(raw) };
+  } catch {
+    return null;
+  }
+}
+
+// GET only renders a page with a real button -- it must NOT activate the
+// subscription itself. Email security gateways (Outlook Safe Links,
+// Proofpoint, Mimecast, and similar) routinely issue their own GET request
+// against every link in an email to scan it for phishing/malware, often
+// before the recipient ever opens the message. If GET performed the actual
+// confirm (as this used to), that automated scan alone would silently
+// activate a subscription the real recipient never saw or clicked --
+// defeating the entire point of double opt-in described on handleSubscribe
+// above (stopping exactly that class of unwanted signup). Those scanners
+// fetch links; they don't submit forms, so requiring a real POST to do the
+// side effect closes the gap.
 async function handleConfirmSubscribe(request, env) {
   const url = new URL(request.url);
   const token = (url.searchParams.get('token') || '').trim();
-  if (!token) return html(confirmSubscribePage({ ok: false }), 400);
+  const pending = await resolvePendingSubscription(token, env);
+  if (!pending) return html(confirmSubscribePage({ ok: false }), 400);
 
-  const pendingKey = `${PENDING_PREFIX}${token}`;
-  const raw = await env.VIEWS.get(pendingKey);
-  if (!raw) return html(confirmSubscribePage({ ok: false }), 400);
+  return html(confirmSubscribePromptPage({ token, state: pending.state, city: pending.city }));
+}
 
-  let pending;
+async function handleConfirmSubscribeSubmit(request, env) {
+  let form;
   try {
-    pending = JSON.parse(raw);
+    form = await request.formData();
   } catch {
     return html(confirmSubscribePage({ ok: false }), 400);
   }
+  const token = String(form.get('token') || '').trim();
+  const pending = await resolvePendingSubscription(token, env);
+  if (!pending) return html(confirmSubscribePage({ ok: false }), 400);
 
-  const { email, state, city } = pending;
+  const { email, state, city, pendingKey } = pending;
   const coords = await geocodeCity(city, state);
   const record = {
     email,
@@ -444,6 +471,29 @@ async function handleConfirmSubscribe(request, env) {
   await env.VIEWS.delete(pendingKey);
 
   return html(confirmSubscribePage({ ok: true, state, city }));
+}
+
+export function confirmSubscribePromptPage({ token, state, city }) {
+  const location = `${escapeHtml(city)}, ${escapeHtml(state)}`;
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirm your alerts — Crime Radar</title>
+  </head>
+  <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#020617 0%,#111827 50%,#0f172a 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#f8fafc;padding:24px;box-sizing:border-box;">
+    <div style="max-width:420px;width:100%;text-align:center;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);border-radius:24px;padding:40px 32px;">
+      <p style="margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:3px;color:#67e8f9;text-transform:uppercase;">Crime Radar</p>
+      <h1 style="margin:0 0 16px;font-size:22px;color:#ffffff;">Confirm your alerts for ${location}</h1>
+      <p style="margin:0 0 28px;font-size:14px;line-height:1.6;color:#cbd5e1;">Click below to start receiving alerts for ${location}. If you didn't request this, you can safely ignore this page.</p>
+      <form method="POST" action="/api/subscribe/confirm">
+        <input type="hidden" name="token" value="${escapeHtml(token)}" />
+        <button type="submit" style="display:inline-block;padding:10px 24px;border-radius:999px;border:1px solid rgba(56,189,248,0.3);background:rgba(14,165,233,0.15);color:#a5f3fc;font-size:14px;font-weight:600;cursor:pointer;">Confirm alerts for ${location}</button>
+      </form>
+    </div>
+  </body>
+</html>`;
 }
 
 export function confirmSubscribePage({ ok, state, city }) {
@@ -944,6 +994,10 @@ export default {
 
     if (url.pathname === '/api/subscribe/confirm' && request.method === 'GET') {
       return handleConfirmSubscribe(request, env);
+    }
+
+    if (url.pathname === '/api/subscribe/confirm' && request.method === 'POST') {
+      return handleConfirmSubscribeSubmit(request, env);
     }
 
     if (url.pathname === '/api/subscribe' && request.method === 'DELETE') {
