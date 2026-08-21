@@ -7,6 +7,7 @@ import worker, {
   getSeverityTier,
   haversineMiles,
   renderAlertEmailHtml,
+  safeArticleUrl,
   subKey,
   unsubscribePage,
 } from './index.js';
@@ -234,6 +235,29 @@ describe('renderAlertEmailHtml', () => {
   });
 });
 
+describe('safeArticleUrl', () => {
+  it('passes through an https URL unchanged', () => {
+    expect(safeArticleUrl('https://example.com/story')).toBe('https://example.com/story');
+  });
+
+  it('passes through an http URL unchanged', () => {
+    expect(safeArticleUrl('http://example.com/story')).toBe('http://example.com/story');
+  });
+
+  it('strips a javascript: URL', () => {
+    expect(safeArticleUrl('javascript:alert(1)')).toBe('');
+  });
+
+  it('strips a data: URL', () => {
+    expect(safeArticleUrl('data:text/html,<script>alert(1)</script>')).toBe('');
+  });
+
+  it('strips an unparseable value instead of throwing', () => {
+    expect(safeArticleUrl('not a url')).toBe('');
+    expect(safeArticleUrl('')).toBe('');
+  });
+});
+
 describe('geocodeCity', () => {
   it('prefers a US result in the requested state over other matches', async () => {
     vi.stubGlobal(
@@ -377,6 +401,22 @@ describe('worker.fetch routing', () => {
       const body = await res.json();
       expect(body.items).toHaveLength(2);
       expect(body.items.map((i) => i.title)).toEqual(['Robbery downtown', 'Second story']);
+    });
+
+    it('strips an unsafe article URL from an untrusted upstream feed', async () => {
+      stubEmptyCache();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            articles: [{ title: 'Malicious feed entry', url: 'javascript:alert(1)', source: { name: 'A' }, publishedAt: '2026-01-01' }],
+          }),
+        })
+      );
+      const res = await worker.fetch(new Request('https://api.test/api/news?city=Duluth&state=MN'), makeEnv(), noopCtx);
+      const body = await res.json();
+      expect(body.items[0].link).toBe('');
     });
 
     it('returns 502 instead of throwing when the upstream news source errors', async () => {

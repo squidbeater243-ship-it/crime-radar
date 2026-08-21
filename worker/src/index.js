@@ -79,6 +79,22 @@ async function handleMeta(env) {
   return json({ lastReset: lastReset || null });
 }
 
+// GNews items get embedded verbatim as an <a href> both here (client-side
+// rendering) and in alert emails (renderAlertEmailHtml) -- neither of those
+// call sites HTML-escapes the URL *scheme*, so a `javascript:`/`data:` link
+// from an untrusted upstream feed would otherwise work as a clickable link.
+// Only http(s) survives; anything else is dropped rather than passed through
+// broken, so the item still renders (with a missing link) instead of the
+// whole article being discarded.
+export function safeArticleUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? url : '';
+  } catch {
+    return '';
+  }
+}
+
 async function fetchNewsArticles(city, env) {
   const query = `${city} crime`;
   const apiUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=us&max=10&apikey=${env.GNEWS_API_KEY}`;
@@ -97,7 +113,7 @@ async function fetchNewsArticles(city, env) {
     seenTitles.add(title);
     items.push({
       title,
-      link: article.url || '',
+      link: safeArticleUrl(article.url || ''),
       source: article.source?.name || '',
       pubDate: article.publishedAt || '',
     });
