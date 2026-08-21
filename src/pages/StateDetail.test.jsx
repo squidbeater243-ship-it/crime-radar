@@ -65,4 +65,18 @@ describe('StateDetail', () => {
     const secondStructuredData = usePageMeta.mock.calls.at(-1)[0].structuredData;
     expect(secondStructuredData).toBe(firstStructuredData);
   });
+
+  it('renders the violent-crime trend chart with the generic provenance caption for a normal state', async () => {
+    renderAt('/state/california');
+    expect(await screen.findByText('Violent crime rate, 2018–2024')).toBeInTheDocument();
+    expect(
+      screen.getByText('Independently sourced from FBI historical data; may differ slightly from the snapshot above.')
+    ).toBeInTheDocument();
+  });
+
+  it('renders the Florida-specific caveat instead of the generic caption', async () => {
+    renderAt('/state/florida');
+    expect(await screen.findByText('Violent crime rate, 2018–2024')).toBeInTheDocument();
+    expect(screen.getByText('FBI-methodology trend; differs from the FDLE figure above.')).toBeInTheDocument();
+  });
 });

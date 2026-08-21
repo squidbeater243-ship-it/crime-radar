@@ -19,6 +19,7 @@ import {
   YAxis,
 } from 'recharts';
 import stateData, { normalizeStateName, stateSlugs } from '../data/stateData';
+import stateTrendData from '../data/stateTrendData';
 import { getState } from '../services/dataService';
 import { arrestsBySex, arrestsByRace, arrestDataMeta } from '../data/nationalArrestData';
 import usePageMeta from '../hooks/usePageMeta';
@@ -84,6 +85,17 @@ export default function StateDetail() {
   // synchronous lookup immediately (and can never go stale mid-transition),
   // while `loading` purely gates how long the chart skeleton stays visible.
   const previewState = stateData[normalizedState] || null;
+  const trendEntry = stateTrendData[normalizedState] || null;
+  const trendChartData = trendEntry
+    ? trendEntry.years.map((year, i) => ({ year, violent: trendEntry.violent[i] }))
+    : [];
+  const TREND_CAVEATS = {
+    florida: 'FBI-methodology trend; differs from the FDLE figure above.',
+    nebraska: "FBI-methodology trend; this state's snapshot above is sourced from state data flagged as approximate.",
+  };
+  const trendCaption =
+    TREND_CAVEATS[normalizedState] ||
+    'Independently sourced from FBI historical data; may differ slightly from the snapshot above.';
   const crimeIndexRange = useMemo(() => computeCrimeIndexRange(Object.values(stateData)), []);
   const safetyScore = previewState ? getSafetyScore(previewState, crimeIndexRange) : null;
 
@@ -207,6 +219,7 @@ export default function StateDetail() {
 
     if (activeTab === 'Crime Statistics') {
       return (
+        <div className="space-y-6">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
             <div className="mb-4 flex items-center justify-between">
@@ -257,6 +270,29 @@ export default function StateDetail() {
               </div>
             )}
           </div>
+        </div>
+        {trendEntry && (
+          <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+            <h2 className="text-xl font-semibold text-white">Violent crime rate, 2018–2024</h2>
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendChartData}>
+                  <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+                  <XAxis dataKey="year" stroke="#94a3b8" />
+                  <YAxis stroke="#94a3b8" />
+                  <Tooltip
+                    cursor={{ stroke: 'rgba(56, 189, 248, 0.35)' }}
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(148,163,184,0.2)' }}
+                    itemStyle={{ color: '#e2e8f0' }}
+                    labelStyle={{ color: '#94a3b8' }}
+                  />
+                  <Line type="monotone" dataKey="violent" stroke="#38bdf8" strokeWidth={3} dot={{ r: 5 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="mt-3 text-sm text-slate-400">{trendCaption}</p>
+          </div>
+        )}
         </div>
       );
     }
