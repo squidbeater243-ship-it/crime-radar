@@ -60,6 +60,12 @@ export default function StateDetail() {
   const [favorited, setFavorited] = useState(false);
   const [viewCount, setViewCount] = useState(null);
   const normalizedState = normalizeStateName(stateName || '');
+  // normalizedState is the raw lookup key (spaces, no hyphens) used against
+  // stateData and prefsService storage below -- URLs need the encoded form
+  // instead, since a literal space is invalid in a URL (multi-word states
+  // like "north carolina" were shipping an unencoded space in the canonical
+  // link, og:url, and og:image tags).
+  const encodedState = encodeURIComponent(normalizedState);
 
   useEffect(() => {
     setFavorited(prefsService.isFavorite(normalizedState));
@@ -137,7 +143,7 @@ export default function StateDetail() {
             '@type': 'Dataset',
             name: `${displayName} Crime, Arrest, and Poverty Statistics`,
             description: metaDescription,
-            url: `${SITE_URL}/state/${normalizedState}`,
+            url: `${SITE_URL}/state/${encodedState}`,
             keywords: ['crime statistics', displayName, 'poverty rate', 'arrest data', 'public safety'],
             creator: { '@type': 'Organization', name: SITE_NAME, url: SITE_URL },
             temporalCoverage: previewState.dataYear ? String(previewState.dataYear) : undefined,
@@ -148,14 +154,14 @@ export default function StateDetail() {
               : {}),
           }
         : null,
-    [previewState, displayName, metaDescription, normalizedState]
+    [previewState, displayName, metaDescription, encodedState]
   );
 
   usePageMeta({
     title: isUnknownState && !loading ? 'State Not Found' : displayName,
     description: metaDescription,
-    path: `/state/${normalizedState}`,
-    image: previewState ? `/og/${normalizedState}.png` : undefined,
+    path: `/state/${encodedState}`,
+    image: previewState ? `/og/${encodedState}.png` : undefined,
     noindex: isUnknownState && !loading,
     structuredData,
   });
@@ -348,7 +354,18 @@ export default function StateDetail() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={povertyData}>
                   <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
-                  <XAxis dataKey="name" stroke="#94a3b8" />
+                  {/* interval={0}: with only 2 categories, Recharts'
+                      default auto-skip logic was dropping the first tick
+                      ("California") at narrow widths, leaving that bar
+                      unlabeled. tickFormatter shortens "National average"
+                      so the two labels don't run into each other once both
+                      are forced to render at mobile width. */}
+                  <XAxis
+                    dataKey="name"
+                    stroke="#94a3b8"
+                    interval={0}
+                    tickFormatter={(name) => (name === 'National average' ? 'U.S. average' : name)}
+                  />
                   <YAxis stroke="#94a3b8" unit="%" />
                   <Tooltip cursor={{ fill: 'rgba(52, 211, 153, 0.08)' }} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(148,163,184,0.2)' }} itemStyle={{ color: '#e2e8f0' }} labelStyle={{ color: '#94a3b8' }} formatter={(value) => `${value}%`} />
                   <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="#34d399" />

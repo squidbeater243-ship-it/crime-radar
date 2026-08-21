@@ -7,7 +7,11 @@ import { stateSlugs } from '../src/data/stateData.js';
 import { SITE_URL } from '../src/config/site.js';
 
 const STATIC_ROUTES = ['/', '/state-statistics', '/compare', '/about'];
-const routes = [...STATIC_ROUTES, ...stateSlugs.map((slug) => `/state/${slug}`)];
+// stateSlugs are the raw lowercase state names ("north carolina"), not
+// hyphenated slugs -- a literal space is invalid in a URL, so multi-word
+// states need to be percent-encoded here or every <loc> for them is a
+// malformed URL (10 of 50 states).
+const routes = [...STATIC_ROUTES, ...stateSlugs.map((slug) => `/state/${encodeURIComponent(slug)}`)];
 
 const urls = routes
   .map((route) => `  <url>\n    <loc>${SITE_URL}${route}</loc>\n  </url>`)

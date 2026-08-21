@@ -72,7 +72,7 @@ export default function StateStatistics() {
                 {FEATURED_SLUGS.map((slug) => (
                   <Link
                     key={slug}
-                    to={`/state/${slug}`}
+                    to={`/state/${encodeURIComponent(slug)}`}
                     className="rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1 text-cyan-100 transition hover:border-cyan-300/60 hover:bg-cyan-500/20"
                   >
                     {stateData[slug].displayName}
