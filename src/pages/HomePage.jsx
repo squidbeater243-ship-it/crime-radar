@@ -1,22 +1,12 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Radar } from 'lucide-react';
-import GlassSearchBar from '../components/GlassSearchBar';
-import RecentSearches from '../components/RecentSearches';
-import FavoriteStates from '../components/FavoriteStates';
-import TrendingStates from '../components/TrendingStates';
-import SourcesButton from '../components/SourcesButton';
-import RadarBackdrop from '../components/RadarBackdrop';
+import { ExternalLink, Mail, Radar } from 'lucide-react';
+import stateData, { stateSlugs } from '../data/stateData';
 import usePageMeta from '../hooks/usePageMeta';
-import stateData from '../data/stateData';
-
-// react-simple-maps + d3-geo pull in a meaningful chunk of JS that the hero
-// content above the fold doesn't need — deferring it keeps the initial
-// HomePage bundle focused on what actually needs to paint first.
-const UsMap = lazy(() => import('../components/UsMap'));
-
-const FEATURED_SLUGS = ['california', 'texas', 'florida'];
+import { getLocalNews } from '../services/newsService';
+import { subscribe, unsubscribe } from '../services/subscribeService';
+import RadarBackdrop from '../components/RadarBackdrop';
 
 const TAGLINES = [
   { lead: 'Make sure ', highlight: 'your new home', trail: ' is safe.' },
@@ -59,94 +49,285 @@ function RotatingTagline() {
   );
 }
 
-function MapFallback() {
+// The "scanning" moment between submitting a location and results landing —
+// reuses the same .radar-sweep/.radar-blip CSS already defined globally for
+// RadarBackdrop (including its prefers-reduced-motion handling), just sized
+// for an inline loading state instead of a decorative background.
+function ScanningRadar({ label }) {
   return (
-    <div className="mt-8 w-full rounded-3xl border border-white/10 bg-slate-950/70 p-4 shadow-sm shadow-cyan-500/10 backdrop-blur-sm sm:p-6">
-      <div
-        className="relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80"
-        style={{ aspectRatio: '960 / 600' }}
-      >
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-cyan-400 border-white/10" />
-        </div>
+    <div className="flex flex-col items-center gap-5 py-4">
+      <div className="relative h-36 w-36">
+        <div
+          className="radar-sweep absolute inset-0 rounded-full"
+          style={{ background: 'conic-gradient(from 0deg, rgba(34,211,238,0.7), transparent 45%)' }}
+        />
+        <div className="absolute inset-0 rounded-full border border-cyan-400/30" />
+        <div className="absolute inset-[20%] rounded-full border border-cyan-400/25" />
+        <div className="absolute inset-[40%] rounded-full border border-cyan-400/20" />
+        <div className="radar-blip absolute left-[30%] top-[35%] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300" style={{ boxShadow: '0 0 10px 3px rgba(103,232,249,0.8)' }} />
       </div>
+      <p className="text-sm text-slate-300">{label}</p>
+    </div>
+  );
+}
+
+const formatPubDate = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+function EmailSignup({ city, stateDisplay }) {
+  const [email, setEmail] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [status, setStatus] = useState('idle');
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!agreed) return;
+    setStatus('submitting');
+    try {
+      await subscribe(email.trim(), stateDisplay, city);
+      setStatus('subscribed');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  const handleUnsubscribe = async () => {
+    setStatus('submitting');
+    try {
+      await unsubscribe(email.trim(), stateDisplay, city);
+      setStatus('idle');
+      setEmail('');
+      setAgreed(false);
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-3xl border border-white/10 bg-slate-900/70 p-6 backdrop-blur-xl">
+      <div className="flex items-center gap-2">
+        <Mail className="h-4 w-4 text-cyan-300" aria-hidden />
+        <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">Stay informed</p>
+      </div>
+      <h2 className="mt-2 text-lg font-semibold text-white">
+        Get emailed if something serious happens in {city}, {stateDisplay}.
+      </h2>
+      <p className="mt-1 text-sm text-slate-400">
+        We&apos;ll only send an email for significant crime news here — not routine headlines. Unsubscribe anytime.
+      </p>
+
+      {status === 'subscribed' ? (
+        <div className="mt-4 flex flex-col items-start gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-emerald-200">
+            You&apos;re signed up. Alerts for {city}, {stateDisplay} will go to {email}.
+          </p>
+          <button
+            type="button"
+            onClick={handleUnsubscribe}
+            className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            Unsubscribe
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.com"
+              required
+              aria-label="Email address"
+              className="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 sm:flex-1"
+            />
+            <button
+              type="submit"
+              disabled={!agreed || status === 'submitting'}
+              className="inline-flex shrink-0 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/15 px-5 py-2.5 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {status === 'submitting' ? 'Signing up…' : 'Sign up'}
+            </button>
+          </div>
+          <label className="flex items-start gap-2 text-xs text-slate-400">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(event) => setAgreed(event.target.checked)}
+              className="mt-0.5 h-3.5 w-3.5 rounded border-white/20 bg-slate-950"
+            />
+            I agree to receive occasional email alerts for this area.
+          </label>
+          {status === 'error' && <p className="text-xs text-rose-300">Something went wrong. Try again in a moment.</p>}
+        </form>
+      )}
     </div>
   );
 }
 
 export default function HomePage() {
   usePageMeta({ path: '/' });
+  const [state, setState] = useState('');
+  const [city, setCity] = useState('');
+  const [submitted, setSubmitted] = useState(null);
+  const [status, setStatus] = useState('idle');
+  const [items, setItems] = useState([]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const trimmedCity = city.trim();
+    if (!state || !trimmedCity) return;
+
+    const location = { state, city: trimmedCity };
+    setSubmitted(location);
+    setStatus('loading');
+
+    try {
+      const stateDisplayName = stateData[state]?.displayName || state;
+      const data = await getLocalNews(trimmedCity, stateDisplayName);
+      setItems(data.items || []);
+      setStatus(data.items && data.items.length > 0 ? 'success' : 'empty');
+    } catch {
+      setStatus('error');
+    }
+  };
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.2),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.2),_transparent_35%)]" />
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-16 text-slate-100 sm:px-6 lg:px-8">
+      <RadarBackdrop />
 
-      <main className="relative mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center px-6 py-16 sm:px-8 lg:px-10">
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45 }}
-          className="relative w-full max-w-4xl rounded-[2rem] border border-white/15 bg-gradient-to-br from-white/6 to-white/3 p-8 text-center shadow-2xl shadow-cyan-500/10 backdrop-blur-2xl sm:p-12 overflow-hidden"
+      <motion.div
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45 }}
+        className="relative mx-auto max-w-3xl text-center drop-shadow-[0_2px_16px_rgba(2,6,23,0.85)]"
+      >
+        <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/70">Crime Radar</p>
+        <RotatingTagline />
+        <p className="mx-auto mt-4 max-w-xl text-base text-slate-300 sm:text-lg">
+          Enter a state and city to scan for recent crime-related news — see what&apos;s actually happening before you move in.
+        </p>
+
+        <form
+          onSubmit={handleSubmit}
+          className="mt-10 flex flex-col items-center gap-3 rounded-3xl border border-white/15 bg-white/5 p-4 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl sm:flex-row sm:gap-2"
         >
-          <RadarBackdrop size={560} top="-6rem" className="opacity-40" />
+          <select
+            value={state}
+            onChange={(event) => setState(event.target.value)}
+            required
+            aria-label="State"
+            className="w-full rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none sm:w-48"
+          >
+            <option value="" disabled>
+              State
+            </option>
+            {stateSlugs.map((slug) => (
+              <option key={slug} value={slug}>
+                {stateData[slug].displayName}
+              </option>
+            ))}
+          </select>
+          <input
+            value={city}
+            onChange={(event) => setCity(event.target.value)}
+            placeholder="City"
+            required
+            aria-label="City"
+            className="w-full rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 sm:flex-1"
+          />
+          <button
+            type="submit"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/25 sm:w-auto"
+          >
+            <Radar className="h-4 w-4" aria-hidden />
+            Scan this area
+          </button>
+        </form>
 
-          <div className="relative z-10">
-            <p className="mb-3 text-sm uppercase tracking-[0.35em] text-cyan-300/80">Crime Radar</p>
-            <RotatingTagline />
-            <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-300 sm:text-xl">
-              Search any state or scan your exact area to see real crime and safety data before you sign a lease.
-            </p>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-sm">
+          <Link
+            to="/state-statistics"
+            className="rounded-full border border-white/15 bg-white/10 px-4 py-2 font-medium text-white transition hover:border-cyan-300/40 hover:bg-cyan-500/15"
+          >
+            Browse by state
+          </Link>
+          <Link
+            to="/compare"
+            className="rounded-full border border-white/15 bg-white/10 px-4 py-2 font-medium text-white transition hover:border-cyan-300/40 hover:bg-cyan-500/15"
+          >
+            Compare &amp; rankings
+          </Link>
+        </div>
+      </motion.div>
 
-            <div className="mt-10 flex flex-col items-center gap-4">
-              <GlassSearchBar />
-              <Link
-                to="/area-scan"
-                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-400 to-sky-500 px-6 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/25 transition hover:brightness-110"
-              >
-                <Radar className="h-4 w-4" aria-hidden />
-                Scan your area for safety
-              </Link>
-              <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-slate-300">
-                <span className="text-slate-400">Most popular:</span>
-                {FEATURED_SLUGS.map((slug) => (
-                  <Link
-                    key={slug}
-                    to={`/state/${slug}`}
-                    className="rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1 text-cyan-100 transition hover:border-cyan-300/60 hover:bg-cyan-500/20"
-                  >
-                    {stateData[slug].displayName}
-                  </Link>
-                ))}
-                <Link
-                  to="/compare"
-                  className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:border-cyan-300/40 hover:bg-cyan-500/15"
-                >
-                  Compare states
-                </Link>
-                <Link
-                  to="/overview"
-                  className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:border-cyan-300/40 hover:bg-cyan-500/15"
-                >
-                  National overview
-                </Link>
-              </div>
-            </div>
+      <div className="relative mx-auto mt-10 max-w-2xl">
+        {status === 'idle' && (
+          <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center text-sm text-slate-400">
+            Enter a state and city above to scan the area.
           </div>
-        </motion.div>
+        )}
 
-        <div className="my-8 flex w-full flex-col items-center gap-4">
-          <FavoriteStates />
-          <RecentSearches />
-          <TrendingStates />
-        </div>
+        {status === 'loading' && (
+          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
+              Scanning {stateData[submitted.state]?.displayName}, {submitted.city}
+            </p>
+            <ScanningRadar label="Pulling recent safety updates…" />
+          </div>
+        )}
 
-        <div className="w-full max-w-6xl">
-          <Suspense fallback={<MapFallback />}>
-            <UsMap />
-          </Suspense>
-        </div>
-        <SourcesButton />
-      </main>
+        {status === 'error' && (
+          <div className="rounded-3xl border border-rose-400/20 bg-rose-500/5 p-8 text-center">
+            <p className="text-slate-200">Couldn&apos;t reach the news feed right now. Try again in a moment.</p>
+          </div>
+        )}
+
+        {status === 'empty' && (
+          <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
+              {stateData[submitted.state]?.displayName}, {submitted.city}
+            </p>
+            <p className="mt-3 text-slate-300">
+              No recent safety-relevant headlines found for this area — that's good news. Try a larger nearby city for more coverage.
+            </p>
+          </div>
+        )}
+
+        {status === 'success' && (
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
+              Recent safety updates for {stateData[submitted.state]?.displayName}, {submitted.city}
+            </p>
+            {items.map((item) => (
+              <a
+                key={item.link}
+                href={item.link}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-2xl border border-white/10 bg-slate-900/70 p-4 backdrop-blur-xl transition hover:border-cyan-400/30 hover:bg-slate-900/90"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-medium text-white">{item.title}</p>
+                  <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {item.source}
+                  {item.source && item.pubDate ? ' · ' : ''}
+                  {formatPubDate(item.pubDate)}
+                </p>
+              </a>
+            ))}
+          </div>
+        )}
+
+        {submitted && status !== 'loading' && (
+          <EmailSignup city={submitted.city} stateDisplay={stateData[submitted.state]?.displayName || submitted.state} />
+        )}
+      </div>
     </div>
   );
 }

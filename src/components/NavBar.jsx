@@ -3,9 +3,8 @@ import { Radar } from 'lucide-react';
 
 const links = [
   { to: '/', label: 'Home', end: true },
+  { to: '/state-statistics', label: 'State Statistics' },
   { to: '/compare', label: 'Compare' },
-  { to: '/overview', label: 'Overview' },
-  { to: '/area-scan', label: 'Area Scan' },
 ];
 
 export default function NavBar() {

@@ -14,8 +14,7 @@ import isPrerendering from './utils/isPrerendering';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const StateDetail = lazy(() => import('./pages/StateDetail'));
 const ComparePage = lazy(() => import('./pages/ComparePage'));
-const Overview = lazy(() => import('./pages/Overview'));
-const AreaScan = lazy(() => import('./pages/AreaScan'));
+const StateStatistics = lazy(() => import('./pages/StateStatistics'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const OgCard = lazy(() => import('./pages/OgCard'));
 
@@ -33,10 +32,11 @@ function AnimatedRoutes() {
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<PageTransition><HomePage /></PageTransition>} />
+        <Route path="/state-statistics" element={<PageTransition><StateStatistics /></PageTransition>} />
         <Route path="/compare" element={<PageTransition><ComparePage /></PageTransition>} />
-        <Route path="/overview" element={<PageTransition><Overview /></PageTransition>} />
-        <Route path="/area-scan" element={<PageTransition><AreaScan /></PageTransition>} />
-        <Route path="/local-alerts" element={<Navigate to="/area-scan" replace />} />
+        <Route path="/overview" element={<Navigate to="/compare" replace />} />
+        <Route path="/area-scan" element={<Navigate to="/" replace />} />
+        <Route path="/local-alerts" element={<Navigate to="/" replace />} />
         <Route path="/state/:stateName" element={<PageTransition><StateDetail /></PageTransition>} />
         <Route path="/og/:slug" element={<OgCard />} />
         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

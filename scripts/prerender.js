@@ -27,7 +27,7 @@ function outputPathFor(route, distDir) {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(__dirname, '..', 'dist');
 
-const STATIC_ROUTES = ['/', '/compare', '/overview', '/area-scan'];
+const STATIC_ROUTES = ['/', '/state-statistics', '/compare'];
 const routes = [...STATIC_ROUTES, ...stateSlugs.map((slug) => `/state/${slug}`)];
 
 async function main() {
