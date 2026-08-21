@@ -3,7 +3,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Radar, ShieldCheck, X } from 'lucide-react';
 import stateData, { stateSlugs } from '../data/stateData';
 import { subscribe } from '../services/subscribeService';
+import cityService from '../services/cityService';
 import RadarBackdrop from './RadarBackdrop';
+import CityAutocomplete from './CityAutocomplete';
 
 export default function SignupTakeover({ open, onClose }) {
   const [state, setState] = useState('');
@@ -18,7 +20,9 @@ export default function SignupTakeover({ open, onClose }) {
     setStatus('submitting');
     try {
       const stateDisplay = stateData[state]?.displayName || state;
-      await subscribe(email.trim(), stateDisplay, city.trim());
+      const resolvedCity = await cityService.autoCorrectCity(city.trim(), stateDisplay);
+      setCity(resolvedCity);
+      await subscribe(email.trim(), stateDisplay, resolvedCity);
       setStatus('subscribed');
     } catch {
       setStatus('error');
@@ -105,13 +109,15 @@ export default function SignupTakeover({ open, onClose }) {
                         </option>
                       ))}
                     </select>
-                    <input
+                    <CityAutocomplete
                       value={city}
-                      onChange={(event) => setCity(event.target.value)}
+                      onChange={setCity}
+                      stateDisplayName={state ? stateData[state]?.displayName : ''}
                       placeholder="City"
-                      required
-                      aria-label="City"
-                      className="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 sm:flex-1"
+                      ariaLabel="City"
+                      id="signup-city"
+                      className="w-full sm:flex-1"
+                      inputClassName="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500"
                     />
                   </div>
                   <input

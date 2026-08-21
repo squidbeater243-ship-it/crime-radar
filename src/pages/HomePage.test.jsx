@@ -1,11 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import HomePage from './HomePage';
 import { getLocalNews } from '../services/newsService';
 
 vi.mock('../services/newsService', () => ({
   getLocalNews: vi.fn(),
+}));
+
+// Auto-correct is exercised in cityService.test.js -- here it's a no-op
+// passthrough so scan submissions resolve the city they were given.
+vi.mock('../services/cityService', () => ({
+  default: {
+    autoCorrectCity: vi.fn((city) => Promise.resolve(city)),
+    searchCities: vi.fn(() => Promise.resolve([])),
+  },
 }));
 
 function renderHome() {
@@ -89,6 +98,6 @@ describe('HomePage', () => {
     const pill = await screen.findByRole('button', { name: 'Austin, Texas' });
     fireEvent.click(pill);
 
-    expect(getLocalNews).toHaveBeenCalledWith('Austin', 'Texas');
+    await waitFor(() => expect(getLocalNews).toHaveBeenCalledWith('Austin', 'Texas'));
   });
 });

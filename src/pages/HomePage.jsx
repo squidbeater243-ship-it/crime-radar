@@ -7,10 +7,12 @@ import usePageMeta from '../hooks/usePageMeta';
 import { getLocalNews } from '../services/newsService';
 import { subscribe, unsubscribe } from '../services/subscribeService';
 import prefsService from '../services/prefsService';
+import cityService from '../services/cityService';
 import { computeCrimeIndexRange, getSafetyScore } from '../utils/stateStats';
 import RadarBackdrop from '../components/RadarBackdrop';
 import SafetyBadge from '../components/SafetyBadge';
 import SavedAreas from '../components/SavedAreas';
+import CityAutocomplete from '../components/CityAutocomplete';
 
 const TAGLINES = [
   { lead: 'Make sure ', highlight: 'your new home', trail: ' is safe.' },
@@ -185,15 +187,18 @@ export default function HomePage() {
     const trimmedCity = cityName.trim();
     if (!stateSlug || !trimmedCity) return;
 
+    const stateDisplayName = stateData[stateSlug]?.displayName || stateSlug;
+    const resolvedCity = await cityService.autoCorrectCity(trimmedCity, stateDisplayName);
+    const wasCorrected = resolvedCity.toLowerCase() !== trimmedCity.toLowerCase();
+
     setState(stateSlug);
-    setCity(trimmedCity);
-    setSubmitted({ state: stateSlug, city: trimmedCity });
+    setCity(resolvedCity);
+    setSubmitted({ state: stateSlug, city: resolvedCity, originalCity: wasCorrected ? trimmedCity : null });
     setStatus('loading');
-    setAreaSaved(prefsService.isAreaSaved(stateSlug, trimmedCity));
+    setAreaSaved(prefsService.isAreaSaved(stateSlug, resolvedCity));
 
     try {
-      const stateDisplayName = stateData[stateSlug]?.displayName || stateSlug;
-      const data = await getLocalNews(trimmedCity, stateDisplayName);
+      const data = await getLocalNews(resolvedCity, stateDisplayName);
       setItems(data.items || []);
       setStatus(data.items && data.items.length > 0 ? 'success' : 'empty');
     } catch {
@@ -257,13 +262,14 @@ export default function HomePage() {
               </option>
             ))}
           </select>
-          <input
+          <CityAutocomplete
             value={city}
-            onChange={(event) => setCity(event.target.value)}
+            onChange={setCity}
+            stateDisplayName={state ? stateData[state]?.displayName : ''}
             placeholder="City"
-            required
-            aria-label="City"
-            className="w-full rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 sm:flex-1"
+            ariaLabel="City"
+            id="scan-city"
+            className="w-full sm:flex-1"
           />
           <button
             type="submit"
@@ -296,25 +302,32 @@ export default function HomePage() {
 
       <div className="relative mx-auto mt-10 max-w-2xl">
         {submitted && (
-          <div className="mb-4 flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/70 p-4 backdrop-blur-xl">
-            <div className="flex items-center gap-3">
-              <p className="text-sm font-medium text-white">
-                {submitted.city}, {stateData[submitted.state]?.displayName}
-              </p>
-              {submittedSafetyScore != null && <SafetyBadge score={submittedSafetyScore} />}
-              <button
-                type="button"
-                onClick={handleToggleSaveArea}
-                aria-label={areaSaved ? 'Remove this area from saved areas' : 'Save this area'}
-                aria-pressed={areaSaved}
-                className="rounded-full p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-rose-300"
-              >
-                <Heart className={`h-4 w-4 transition ${areaSaved ? 'fill-rose-400 text-rose-400' : ''}`} />
-              </button>
+          <div className="mb-4 rounded-3xl border border-white/10 bg-slate-900/70 p-4 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <p className="text-sm font-medium text-white">
+                  {submitted.city}, {stateData[submitted.state]?.displayName}
+                </p>
+                {submittedSafetyScore != null && <SafetyBadge score={submittedSafetyScore} />}
+                <button
+                  type="button"
+                  onClick={handleToggleSaveArea}
+                  aria-label={areaSaved ? 'Remove this area from saved areas' : 'Save this area'}
+                  aria-pressed={areaSaved}
+                  className="rounded-full p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-rose-300"
+                >
+                  <Heart className={`h-4 w-4 transition ${areaSaved ? 'fill-rose-400 text-rose-400' : ''}`} />
+                </button>
+              </div>
+              {submittedSafetyScore != null && (
+                <p className="hidden max-w-[14rem] text-right text-xs text-slate-500 sm:block">
+                  Statewide safety grade for {stateData[submitted.state]?.displayName} — not specific to {submitted.city}.
+                </p>
+              )}
             </div>
-            {submittedSafetyScore != null && (
-              <p className="hidden max-w-[14rem] text-right text-xs text-slate-500 sm:block">
-                Statewide safety grade for {stateData[submitted.state]?.displayName} — not specific to {submitted.city}.
+            {submitted.originalCity && (
+              <p className="mt-2 text-xs text-slate-500">
+                Showing results for {submitted.city} — you typed &quot;{submitted.originalCity}&quot;.
               </p>
             )}
           </div>
