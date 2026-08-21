@@ -1,7 +1,21 @@
-import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import StateDetail from './StateDetail';
+import usePageMeta from '../hooks/usePageMeta';
+
+// Spied (not faked) so the real title/meta-tag effect still runs -- only
+// the call arguments are inspected, for the memoization regression test
+// below.
+vi.mock('../hooks/usePageMeta', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, default: vi.fn(actual.default) };
+});
+
+afterEach(() => {
+  localStorage.clear();
+  vi.clearAllMocks();
+});
 
 function renderAt(path) {
   return render(
@@ -32,5 +46,23 @@ describe('StateDetail', () => {
   it('shows the "not found" panel for an unknown slug instead of crashing', async () => {
     renderAt('/state/nowhereland');
     expect(await screen.findByText(/No data available for/)).toBeInTheDocument();
+  });
+
+  it('keeps the same structuredData reference across an unrelated re-render', async () => {
+    // Regression test: structuredData used to be a fresh object literal on
+    // every render, passed straight to usePageMeta -- whose effect keys off
+    // referential identity, so an unrelated local re-render (e.g. toggling
+    // favorite) reran the whole title/meta-tag/structured-data effect
+    // instead of only when the displayed state actually changes.
+    renderAt('/state/california');
+    await screen.findByRole('heading', { name: 'California' });
+
+    const firstStructuredData = usePageMeta.mock.calls.at(-1)[0].structuredData;
+    expect(firstStructuredData).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add California to favorites' }));
+
+    const secondStructuredData = usePageMeta.mock.calls.at(-1)[0].structuredData;
+    expect(secondStructuredData).toBe(firstStructuredData);
   });
 });

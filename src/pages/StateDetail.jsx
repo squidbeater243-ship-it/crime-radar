@@ -121,23 +121,33 @@ export default function StateDetail() {
   // Dataset schema — this page presents real, sourced statistics (not just
   // narrative content), which is what schema.org/Dataset is actually for;
   // it's also the type Google's Dataset Search indexes against.
-  const structuredData = previewState
-    ? {
-        '@context': 'https://schema.org',
-        '@type': 'Dataset',
-        name: `${displayName} Crime, Arrest, and Poverty Statistics`,
-        description: metaDescription,
-        url: `${SITE_URL}/state/${normalizedState}`,
-        keywords: ['crime statistics', displayName, 'poverty rate', 'arrest data', 'public safety'],
-        creator: { '@type': 'Organization', name: SITE_NAME, url: SITE_URL },
-        temporalCoverage: previewState.dataYear ? String(previewState.dataYear) : undefined,
-        spatialCoverage: { '@type': 'State', name: `${displayName}, United States` },
-        isAccessibleForFree: true,
-        ...(previewState.sources?.length
-          ? { citation: previewState.sources.map((s) => ({ '@type': 'CreativeWork', name: s.label, url: s.url })) }
-          : {}),
-      }
-    : null;
+  //
+  // Memoized because it's passed to usePageMeta, which re-runs its
+  // head-mutating effect (title, ~12 meta tags, canonical link, this script
+  // tag) whenever this reference changes -- without useMemo, a fresh object
+  // literal here reruns that effect on every render of this page, not just
+  // when the state being displayed actually changes.
+  const structuredData = useMemo(
+    () =>
+      previewState
+        ? {
+            '@context': 'https://schema.org',
+            '@type': 'Dataset',
+            name: `${displayName} Crime, Arrest, and Poverty Statistics`,
+            description: metaDescription,
+            url: `${SITE_URL}/state/${normalizedState}`,
+            keywords: ['crime statistics', displayName, 'poverty rate', 'arrest data', 'public safety'],
+            creator: { '@type': 'Organization', name: SITE_NAME, url: SITE_URL },
+            temporalCoverage: previewState.dataYear ? String(previewState.dataYear) : undefined,
+            spatialCoverage: { '@type': 'State', name: `${displayName}, United States` },
+            isAccessibleForFree: true,
+            ...(previewState.sources?.length
+              ? { citation: previewState.sources.map((s) => ({ '@type': 'CreativeWork', name: s.label, url: s.url })) }
+              : {}),
+          }
+        : null,
+    [previewState, displayName, metaDescription, normalizedState]
+  );
 
   usePageMeta({
     title: isUnknownState && !loading ? 'State Not Found' : displayName,
