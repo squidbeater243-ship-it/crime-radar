@@ -567,6 +567,26 @@ describe('worker.fetch routing', () => {
       expect(res.status).toBe(400);
     });
 
+    it('rejects a body of literal JSON null instead of throwing on property access', async () => {
+      // `null` is valid JSON -- JSON.parse succeeds, so the malformed-JSON
+      // catch above never fires. body.email on a null body throws unless
+      // guarded separately, which (unlike every other error path in this
+      // handler) would escape as an uncaught platform error instead of a
+      // clean 400.
+      const req = new Request('https://api.test/api/subscribe', { method: 'POST', body: 'null' });
+      const res = await worker.fetch(req, makeEnv(), noopCtx);
+      expect(res.status).toBe(400);
+    });
+
+    it.each([['42', '42'], ['true', 'true'], ['a JSON string', '"hello"'], ['an array', '[]']])(
+      'rejects a non-object JSON body (%s) with a clean 400',
+      async (_label, rawBody) => {
+        const req = new Request('https://api.test/api/subscribe', { method: 'POST', body: rawBody });
+        const res = await worker.fetch(req, makeEnv(), noopCtx);
+        expect(res.status).toBe(400);
+      }
+    );
+
     it('returns 500 when the email service is not configured', async () => {
       const req = new Request('https://api.test/api/subscribe', {
         method: 'POST',

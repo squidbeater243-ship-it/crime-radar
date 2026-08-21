@@ -337,6 +337,14 @@ async function handleSubscribe(request, env) {
   } catch {
     return json({ error: 'invalid request body' }, 400);
   }
+  // `null` is valid JSON (JSON.parse('null') succeeds), so it isn't caught
+  // above -- but body.email on a null body throws, uncaught, turning into an
+  // ugly platform error page instead of the clean 400 every other malformed
+  // input gets here. Every other non-object JSON body (42, true, "x", [])
+  // degrades safely since property access on those just returns undefined.
+  if (!body || typeof body !== 'object') {
+    return json({ error: 'invalid request body' }, 400);
+  }
 
   const email = (body.email || '').trim();
   const state = (body.state || '').trim();
