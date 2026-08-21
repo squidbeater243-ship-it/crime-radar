@@ -8,6 +8,7 @@ import {
   CartesianGrid,
   Cell,
   LabelList,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -267,6 +268,11 @@ export default function StateDetail() {
                       <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
+                  {/* Nothing in the chart itself previously said which
+                      color was which -- a viewer had to guess, or cross-
+                      reference the "73.8% male / 26.2% female" text below
+                      and assume the larger segment came first. */}
+                  <Legend verticalAlign="bottom" formatter={(value) => <span style={{ color: '#cbd5e1' }}>{value}</span>} />
                   <Tooltip cursor={false} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(148,163,184,0.2)' }} itemStyle={{ color: '#e2e8f0' }} labelStyle={{ color: '#94a3b8' }} formatter={(value) => `${value}%`} />
                 </PieChart>
               </ResponsiveContainer>
