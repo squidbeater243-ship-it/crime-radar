@@ -143,6 +143,44 @@ function subKey(state, city, email) {
   return `${SUB_PREFIX}${state.toLowerCase()}:${city.toLowerCase()}:${email.toLowerCase()}`;
 }
 
+// Open-Meteo's geocoder matches names literally and doesn't know "St." means
+// "Saint" — searching "St Paul" returns zero US results (only UK/Australia
+// places named "St Paul's"), while "Saint Paul" correctly finds Minnesota's
+// capital. Since abbreviated forms are how people actually type these city
+// names, expand the common ones before querying. Query-only: the value
+// stored on the subscription record stays exactly what the user typed.
+function expandCityAbbreviations(city) {
+  return city
+    .replace(/\bSt\.?\s/gi, 'Saint ')
+    .replace(/\bFt\.?\s/gi, 'Fort ')
+    .replace(/\bMt\.?\s/gi, 'Mount ');
+}
+
+// Free, keyless geocoder — used once per signup so alert fan-out (see
+// getSeverityTier/runAlertCheck below) can compute distance between
+// subscribed cities without bundling a US-cities dataset into the worker.
+// A failed lookup just leaves lat/lon null on the record; the subscriber
+// still gets alerts for their own city, they just can't receive nearby
+// (regional-tier) fan-out.
+async function geocodeCity(city, state) {
+  try {
+    const queryName = expandCityAbbreviations(city);
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(queryName)}&count=10&language=en&format=json`;
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const results = Array.isArray(data.results) ? data.results : [];
+    const stateLower = state.toLowerCase();
+    const match =
+      results.find((r) => r.country_code === 'US' && (r.admin1 || '').toLowerCase() === stateLower) ||
+      results.find((r) => r.country_code === 'US');
+    if (!match) return null;
+    return { lat: match.latitude, lon: match.longitude };
+  } catch {
+    return null;
+  }
+}
+
 async function handleSubscribe(request, env) {
   let body;
   try {
@@ -162,7 +200,15 @@ async function handleSubscribe(request, env) {
     return json({ error: 'invalid city or state' }, 400);
   }
 
-  const record = { email: email.toLowerCase(), state, city, subscribedAt: new Date().toISOString() };
+  const coords = await geocodeCity(city, state);
+  const record = {
+    email: email.toLowerCase(),
+    state,
+    city,
+    lat: coords?.lat ?? null,
+    lon: coords?.lon ?? null,
+    subscribedAt: new Date().toISOString(),
+  };
   await env.VIEWS.put(subKey(state, city, email), JSON.stringify(record));
 
   return json({ success: true });
@@ -225,7 +271,32 @@ async function handleUnsubscribeLink(request, env) {
 const SENT_PREFIX = 'sent:';
 const SENT_TTL_SECONDS = 60 * 60 * 24 * 30;
 
-const SEVERITY_KEYWORDS = [
+// Severity is a spectrum, not a yes/no: how far an alert fans out beyond the
+// subscriber's own city scales with how serious the headline is (see
+// TIER_RADIUS_MILES and runAlertCheck).
+//   local     — stays with subscribers of that exact city (today's behavior)
+//   regional  — also reaches subscribers within TIER_RADIUS_MILES.regional
+//   statewide — reaches every subscriber in that state, regardless of distance
+const LOCAL_KEYWORDS = [
+  'robbery',
+  'robbed',
+  'burglary',
+  'burglarized',
+  'assault',
+  'assaulted',
+  'armed robbery',
+  'carjacking',
+  'carjacked',
+  'break-in',
+  'broke in',
+  'shots fired',
+  'vandalism',
+  'theft',
+  'stolen',
+  'drive-by',
+];
+
+const REGIONAL_KEYWORDS = [
   'shooting',
   'shot dead',
   'gunman',
@@ -239,28 +310,60 @@ const SEVERITY_KEYWORDS = [
   'stabbed',
   'fatal',
   'hostage',
-  'explosion',
-  'bombing',
   'kidnap',
   'abduct',
-  'mass shooting',
   'manhunt',
   'standoff',
   'arson',
   'dead body',
-  'dead bodies',
-  'bodies found',
   'body found',
   'found dead',
-  'bodies',
   'decomposition',
   'slain',
   'deceased',
 ];
 
-function isSignificant(title) {
+const STATEWIDE_KEYWORDS = [
+  'mass shooting',
+  'bodies found',
+  'dead bodies',
+  'multiple bodies',
+  'active shooter',
+  'terrorist',
+  'terrorism',
+  'bombing',
+  'explosion',
+  'serial killer',
+  'serial killings',
+  'serial murders',
+  'serial rapist',
+  'escaped inmate',
+  'prison break',
+  'amber alert',
+];
+
+const TIER_RADIUS_MILES = { regional: 60 };
+
+function matchesAny(lower, keywords) {
+  return keywords.some((kw) => lower.includes(kw));
+}
+
+function getSeverityTier(title) {
   const lower = title.toLowerCase();
-  return SEVERITY_KEYWORDS.some((kw) => lower.includes(kw));
+  if (matchesAny(lower, STATEWIDE_KEYWORDS)) return 'statewide';
+  if (matchesAny(lower, REGIONAL_KEYWORDS)) return 'regional';
+  if (matchesAny(lower, LOCAL_KEYWORDS)) return 'local';
+  return null;
+}
+
+function haversineMiles(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const EARTH_RADIUS_MILES = 3958.8;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return EARTH_RADIUS_MILES * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 async function sha256Hex(text) {
@@ -284,9 +387,14 @@ async function getSubscribersByLocation(env) {
     }
     const locKey = `${record.state.toLowerCase()}:${record.city.toLowerCase()}`;
     if (!locations.has(locKey)) {
-      locations.set(locKey, { state: record.state, city: record.city, emails: [] });
+      locations.set(locKey, { state: record.state, city: record.city, emails: [], lat: null, lon: null });
     }
-    locations.get(locKey).emails.push(record.email);
+    const location = locations.get(locKey);
+    location.emails.push(record.email);
+    if (location.lat == null && typeof record.lat === 'number' && typeof record.lon === 'number') {
+      location.lat = record.lat;
+      location.lon = record.lon;
+    }
   }
 
   return [...locations.values()];
@@ -304,13 +412,39 @@ export function formatArticleDate(value) {
 // design: dark-themed HTML email is a known minefield (clients auto-invert
 // colors they don't recognize), so this deliberately doesn't try to match
 // the app's dark UI.
-export function renderAlertEmailHtml({ state, city, article, unsubscribeUrl }) {
+// `scope` distinguishes why the recipient got this email: 'home' (subscribed
+// to the exact city it happened in), 'regional' (nearby city, within
+// TIER_RADIUS_MILES.regional), or 'statewide' (same state, any distance).
+// `subState`/`subCity` are always the RECIPIENT's own subscription — not the
+// incident location — so the unsubscribe link and footer stay correct for
+// fan-out recipients who never subscribed to the incident's city.
+export function renderAlertEmailHtml({
+  incidentState,
+  incidentCity,
+  subState,
+  subCity,
+  article,
+  unsubscribeUrl,
+  scope = 'home',
+  distanceMiles = null,
+}) {
   const title = escapeHtml(article.title);
   const source = escapeHtml(article.source || '');
   const dateLabel = formatArticleDate(article.pubDate);
   const meta = [source, dateLabel].filter(Boolean).join(' · ');
   const link = escapeHtml(article.link);
-  const locationLabel = `${escapeHtml(city)}, ${escapeHtml(state)}`;
+  const incidentLabel = `${escapeHtml(incidentCity)}, ${escapeHtml(incidentState)}`;
+  const subLabel = `${escapeHtml(subCity)}, ${escapeHtml(subState)}`;
+
+  let eyebrow;
+  if (scope === 'statewide') {
+    eyebrow = `Statewide alert for ${escapeHtml(incidentState)} &mdash; reported in ${escapeHtml(incidentCity)}`;
+  } else if (scope === 'regional') {
+    const distanceText = distanceMiles != null ? ` &mdash; ${Math.round(distanceMiles)} mi away` : '';
+    eyebrow = `Nearby alert &mdash; reported in ${incidentLabel}${distanceText}`;
+  } else {
+    eyebrow = `Alert for ${incidentLabel}`;
+  }
 
   return `<!doctype html>
 <html lang="en">
@@ -320,7 +454,7 @@ export function renderAlertEmailHtml({ state, city, article, unsubscribeUrl }) {
     <title>Crime Radar Alert</title>
   </head>
   <body style="margin:0;padding:0;background-color:#f1f5f9;">
-    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">New alert for ${locationLabel}: ${title}</div>
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">New alert for ${incidentLabel}: ${title}</div>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;">
       <tr>
         <td align="center" style="padding:32px 16px;">
@@ -332,7 +466,7 @@ export function renderAlertEmailHtml({ state, city, article, unsubscribeUrl }) {
             </tr>
             <tr>
               <td style="padding:32px;">
-                <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:1.5px;color:#0ea5e9;text-transform:uppercase;">Alert for ${locationLabel}</p>
+                <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:1.5px;color:#0ea5e9;text-transform:uppercase;">${eyebrow}</p>
                 <h1 style="margin:0 0 16px;font-size:22px;line-height:1.35;color:#0f172a;">${title}</h1>
                 ${meta ? `<p style="margin:0 0 24px;font-size:13px;color:#64748b;">${meta}</p>` : ''}
                 <a href="${link}" style="display:inline-block;padding:12px 24px;background-color:#0ea5e9;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:999px;">Read the full story &rarr;</a>
@@ -340,8 +474,8 @@ export function renderAlertEmailHtml({ state, city, article, unsubscribeUrl }) {
             </tr>
             <tr>
               <td style="padding:20px 32px;background-color:#f8fafc;border-top:1px solid #e2e8f0;">
-                <p style="margin:0;font-size:12px;color:#94a3b8;">You're receiving this because you signed up for crime alerts in ${locationLabel} on Crime Radar.</p>
-                <p style="margin:8px 0 0;font-size:12px;"><a href="${unsubscribeUrl}" style="color:#64748b;text-decoration:underline;">Unsubscribe from ${locationLabel} alerts</a></p>
+                <p style="margin:0;font-size:12px;color:#94a3b8;">You're receiving this because you signed up for crime alerts in ${subLabel} on Crime Radar.</p>
+                <p style="margin:8px 0 0;font-size:12px;"><a href="${unsubscribeUrl}" style="color:#64748b;text-decoration:underline;">Unsubscribe from ${subLabel} alerts</a></p>
               </td>
             </tr>
           </table>
@@ -356,8 +490,17 @@ export function renderAlertEmailHtml({ state, city, article, unsubscribeUrl }) {
 // each recipient's unsubscribe link has to carry their own email address,
 // and a shared `to` list would otherwise expose every subscriber's address
 // to every other subscriber in that location.
-async function sendAlertEmail(env, email, state, city, article) {
-  const unsubscribeUrl = `${API_BASE_URL}/api/unsubscribe?${new URLSearchParams({ email, state, city })}`;
+async function sendAlertEmail(env, email, incidentState, incidentCity, article, recipientInfo) {
+  const { subState, subCity, scope, distanceMiles } = recipientInfo;
+  const unsubscribeUrl = `${API_BASE_URL}/api/unsubscribe?${new URLSearchParams({ email, state: subState, city: subCity })}`;
+
+  const subjectLocation =
+    scope === 'statewide'
+      ? `${incidentState} (statewide)`
+      : scope === 'regional'
+        ? `near ${subCity}, ${subState}`
+        : `${incidentCity}, ${incidentState}`;
+
   const resp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -367,8 +510,17 @@ async function sendAlertEmail(env, email, state, city, article) {
     body: JSON.stringify({
       from: 'Crime Radar Alerts <alerts@mail.platinumsoftwaremn.com>',
       to: [email],
-      subject: `Crime Radar alert: ${city}, ${state}`,
-      html: renderAlertEmailHtml({ state, city, article, unsubscribeUrl }),
+      subject: `Crime Radar alert: ${subjectLocation}`,
+      html: renderAlertEmailHtml({
+        incidentState,
+        incidentCity,
+        subState,
+        subCity,
+        article,
+        unsubscribeUrl,
+        scope,
+        distanceMiles,
+      }),
     }),
   });
   return resp.ok;
@@ -384,7 +536,8 @@ async function runAlertCheck(env) {
   const locations = await getSubscribersByLocation(env);
   summary.locations = locations.length;
 
-  for (const { state, city, emails } of locations) {
+  for (const home of locations) {
+    const { state, city, emails } = home;
     let articles;
     try {
       articles = await fetchNewsArticles(city, env);
@@ -394,19 +547,50 @@ async function runAlertCheck(env) {
     }
     summary.articlesSeen += articles.length;
 
-    const significant = articles.filter((a) => isSignificant(a.title));
-    summary.significant += significant.length;
+    const tiered = articles
+      .map((article) => ({ article, tier: getSeverityTier(article.title) }))
+      .filter((entry) => entry.tier);
+    summary.significant += tiered.length;
 
-    for (const article of significant) {
+    for (const { article, tier } of tiered) {
       if (!article.link) continue;
       const hash = await sha256Hex(article.link);
       const sentKey = `${SENT_PREFIX}${state.toLowerCase()}:${city.toLowerCase()}:${hash}`;
       const alreadySent = await env.VIEWS.get(sentKey);
       if (alreadySent) continue;
 
+      // Always the home city's own subscribers, plus (for regional/statewide
+      // tiers) other same-state subscribers within the tier's reach.
+      const recipients = new Map();
+      for (const email of emails) {
+        recipients.set(email, { scope: 'home', distanceMiles: 0, subState: state, subCity: city });
+      }
+
+      if (tier !== 'local') {
+        for (const other of locations) {
+          if (other === home) continue;
+          if (other.state.toLowerCase() !== state.toLowerCase()) continue;
+
+          let distanceMiles = null;
+          if (home.lat != null && home.lon != null && other.lat != null && other.lon != null) {
+            distanceMiles = haversineMiles(home.lat, home.lon, other.lat, other.lon);
+          }
+
+          const included =
+            tier === 'statewide' ? true : distanceMiles != null && distanceMiles <= TIER_RADIUS_MILES.regional;
+          if (!included) continue;
+
+          for (const email of other.emails) {
+            if (!recipients.has(email)) {
+              recipients.set(email, { scope: tier, distanceMiles, subState: other.state, subCity: other.city });
+            }
+          }
+        }
+      }
+
       let successCount = 0;
-      for (const recipient of emails) {
-        const ok = await sendAlertEmail(env, recipient, state, city, article);
+      for (const [email, info] of recipients) {
+        const ok = await sendAlertEmail(env, email, state, city, article, info);
         if (ok) successCount += 1;
       }
 
