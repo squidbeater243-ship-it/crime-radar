@@ -11,9 +11,6 @@ worker/node_modules
 worker/.wrangler
 .wrangler
 
-# Generated social-preview images (run `npm run og-images` to regenerate)
-public/og
-
 # Env / secrets
 .env
 .env.local
