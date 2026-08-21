@@ -18,6 +18,9 @@ const SUBSCRIBE_THROTTLE_SECONDS = 5 * 60;
 const VIEW_RATE_PREFIX = 'viewrate:';
 const VIEW_RATE_WINDOW_SECONDS = 60;
 const VIEW_RATE_MAX = 30;
+const SUBSCRIBE_IP_RATE_PREFIX = 'subiprate:';
+const SUBSCRIBE_IP_RATE_WINDOW_SECONDS = 10 * 60;
+const SUBSCRIBE_IP_RATE_MAX = 5;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -341,6 +344,22 @@ async function handleSubscribe(request, env) {
     return json({ error: 'email service not configured' }, 500);
   }
 
+  // The per-email throttle below stops one address from being repeatedly
+  // targeted, but does nothing against an attacker cycling through many
+  // different fake addresses from one source -- each one still costs a
+  // real Resend send. Free/low tiers cap sends per day; a burst across
+  // enough distinct fake addresses could exhaust that quota and break
+  // confirmation emails for genuine signups for the rest of the day. This
+  // per-IP cap is deliberately tighter than the view-endpoint one (5 per
+  // 10 minutes vs. 30 per minute) since a real user only ever submits this
+  // form a handful of times, not dozens.
+  const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+  const ipRateKey = `${SUBSCRIBE_IP_RATE_PREFIX}${ip}`;
+  const recentFromIp = Number((await env.VIEWS.get(ipRateKey)) || '0');
+  if (recentFromIp >= SUBSCRIBE_IP_RATE_MAX) {
+    return json({ error: 'too many requests -- try again in a few minutes' }, 429);
+  }
+
   // Confirmation alone doesn't stop *this* endpoint from being used to
   // spam a stranger's inbox with confirmation emails they never asked
   // for -- it only stops fake signups from receiving ongoing alert
@@ -364,9 +383,10 @@ async function handleSubscribe(request, env) {
     return json({ error: 'failed to send confirmation email' }, 502);
   }
 
-  // Only start the cooldown once an email has actually gone out, so a
+  // Only start the cooldowns once an email has actually gone out, so a
   // transient send failure doesn't lock a genuine user out of retrying.
   await env.VIEWS.put(throttleKey, '1', { expirationTtl: SUBSCRIBE_THROTTLE_SECONDS });
+  await env.VIEWS.put(ipRateKey, String(recentFromIp + 1), { expirationTtl: SUBSCRIBE_IP_RATE_WINDOW_SECONDS });
 
   return json({ success: true, pending: true });
 }

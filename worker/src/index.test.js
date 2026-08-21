@@ -696,6 +696,53 @@ describe('worker.fetch routing', () => {
       );
       expect(second.status).toBe(429);
     });
+
+    it('rate-limits an IP across many different emails, since each still costs a real send', async () => {
+      // The per-email throttle above does nothing against an attacker
+      // cycling through many different fake addresses from one source --
+      // each one is still a real Resend send that counts against a
+      // (likely capped) daily quota. This is what actually stops that.
+      const env = makeEnv();
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+
+      const subscribeAs = (email) =>
+        worker.fetch(
+          new Request('https://api.test/api/subscribe', {
+            method: 'POST',
+            headers: { 'cf-connecting-ip': '1.2.3.4' },
+            body: JSON.stringify({ email, state: 'Minnesota', city: 'Duluth' }),
+          }),
+          env,
+          noopCtx
+        );
+
+      for (let i = 0; i < 5; i += 1) {
+        const res = await subscribeAs(`victim${i}@example.com`);
+        expect(res.status).toBe(200);
+      }
+      const blocked = await subscribeAs('victim5@example.com');
+      expect(blocked.status).toBe(429);
+    });
+
+    it('does not count a request from a different IP against another IP’s limit', async () => {
+      const env = makeEnv();
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+
+      const subscribeFrom = (ip, email) =>
+        worker.fetch(
+          new Request('https://api.test/api/subscribe', {
+            method: 'POST',
+            headers: { 'cf-connecting-ip': ip },
+            body: JSON.stringify({ email, state: 'Minnesota', city: 'Duluth' }),
+          }),
+          env,
+          noopCtx
+        );
+
+      for (let i = 0; i < 5; i += 1) await subscribeFrom('9.9.9.9', `a${i}@example.com`);
+      const res = await subscribeFrom('1.1.1.1', 'unrelated@example.com');
+      expect(res.status).toBe(200);
+    });
   });
 
   describe('GET /api/subscribe/confirm', () => {
