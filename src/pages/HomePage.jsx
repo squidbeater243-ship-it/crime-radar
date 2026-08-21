@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { ExternalLink, Mail, Radar } from 'lucide-react';
+import { ExternalLink, Heart, Mail, Radar } from 'lucide-react';
 import stateData, { stateSlugs } from '../data/stateData';
 import usePageMeta from '../hooks/usePageMeta';
 import { getLocalNews } from '../services/newsService';
 import { subscribe, unsubscribe } from '../services/subscribeService';
+import prefsService from '../services/prefsService';
+import { computeCrimeIndexRange, getSafetyScore } from '../utils/stateStats';
 import RadarBackdrop from '../components/RadarBackdrop';
+import SafetyBadge from '../components/SafetyBadge';
+import SavedAreas from '../components/SavedAreas';
 
 const TAGLINES = [
   { lead: 'Make sure ', highlight: 'your new home', trail: ' is safe.' },
@@ -175,18 +179,20 @@ export default function HomePage() {
   const [submitted, setSubmitted] = useState(null);
   const [status, setStatus] = useState('idle');
   const [items, setItems] = useState([]);
+  const [areaSaved, setAreaSaved] = useState(false);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const trimmedCity = city.trim();
-    if (!state || !trimmedCity) return;
+  const runScan = async (stateSlug, cityName) => {
+    const trimmedCity = cityName.trim();
+    if (!stateSlug || !trimmedCity) return;
 
-    const location = { state, city: trimmedCity };
-    setSubmitted(location);
+    setState(stateSlug);
+    setCity(trimmedCity);
+    setSubmitted({ state: stateSlug, city: trimmedCity });
     setStatus('loading');
+    setAreaSaved(prefsService.isAreaSaved(stateSlug, trimmedCity));
 
     try {
-      const stateDisplayName = stateData[state]?.displayName || state;
+      const stateDisplayName = stateData[stateSlug]?.displayName || stateSlug;
       const data = await getLocalNews(trimmedCity, stateDisplayName);
       setItems(data.items || []);
       setStatus(data.items && data.items.length > 0 ? 'success' : 'empty');
@@ -194,6 +200,26 @@ export default function HomePage() {
       setStatus('error');
     }
   };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    runScan(state, city);
+  };
+
+  const handleSelectSavedArea = (area) => {
+    runScan(area.state, area.city);
+  };
+
+  const handleToggleSaveArea = () => {
+    if (!submitted) return;
+    const stateDisplayName = stateData[submitted.state]?.displayName || submitted.state;
+    prefsService.toggleSavedArea(submitted.state, submitted.city, stateDisplayName);
+    setAreaSaved((prev) => !prev);
+  };
+
+  const crimeIndexRange = computeCrimeIndexRange(Object.values(stateData));
+  const submittedStateData = submitted ? stateData[submitted.state] : null;
+  const submittedSafetyScore = submittedStateData ? getSafetyScore(submittedStateData, crimeIndexRange) : null;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-16 text-slate-100 sm:px-6 lg:px-8">
@@ -262,9 +288,38 @@ export default function HomePage() {
             Compare &amp; rankings
           </Link>
         </div>
+
+        <div className="mt-6 flex justify-center">
+          <SavedAreas onSelect={handleSelectSavedArea} />
+        </div>
       </motion.div>
 
       <div className="relative mx-auto mt-10 max-w-2xl">
+        {submitted && (
+          <div className="mb-4 flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/70 p-4 backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <p className="text-sm font-medium text-white">
+                {submitted.city}, {stateData[submitted.state]?.displayName}
+              </p>
+              {submittedSafetyScore != null && <SafetyBadge score={submittedSafetyScore} />}
+              <button
+                type="button"
+                onClick={handleToggleSaveArea}
+                aria-label={areaSaved ? 'Remove this area from saved areas' : 'Save this area'}
+                aria-pressed={areaSaved}
+                className="rounded-full p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-rose-300"
+              >
+                <Heart className={`h-4 w-4 transition ${areaSaved ? 'fill-rose-400 text-rose-400' : ''}`} />
+              </button>
+            </div>
+            {submittedSafetyScore != null && (
+              <p className="hidden max-w-[14rem] text-right text-xs text-slate-500 sm:block">
+                Statewide safety grade for {stateData[submitted.state]?.displayName} — not specific to {submitted.city}.
+              </p>
+            )}
+          </div>
+        )}
+
         {status === 'idle' && (
           <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center text-sm text-slate-400">
             Enter a state and city above to scan the area.
@@ -273,9 +328,6 @@ export default function HomePage() {
 
         {status === 'loading' && (
           <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
-              Scanning {stateData[submitted.state]?.displayName}, {submitted.city}
-            </p>
             <ScanningRadar label="Pulling recent safety updates…" />
           </div>
         )}
@@ -288,10 +340,7 @@ export default function HomePage() {
 
         {status === 'empty' && (
           <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
-              {stateData[submitted.state]?.displayName}, {submitted.city}
-            </p>
-            <p className="mt-3 text-slate-300">
+            <p className="text-slate-300">
               No recent safety-relevant headlines found for this area — that's good news. Try a larger nearby city for more coverage.
             </p>
           </div>
@@ -299,9 +348,6 @@ export default function HomePage() {
 
         {status === 'success' && (
           <div className="space-y-3">
-            <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/70">
-              Recent safety updates for {stateData[submitted.state]?.displayName}, {submitted.city}
-            </p>
             {items.map((item) => (
               <a
                 key={item.link}

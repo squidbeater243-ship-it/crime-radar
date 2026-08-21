@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { loadPrefs, savePrefs, addRecent, isFavorite, toggleFavorite } from './prefsService';
+import { loadPrefs, savePrefs, addRecent, isFavorite, toggleFavorite, isAreaSaved, toggleSavedArea } from './prefsService';
 
 beforeEach(() => {
   localStorage.clear();
 });
 
-const DEFAULT_PREFS = { recent: [], favorites: [], soundEnabled: false, hasSeenSignupPrompt: false };
+const DEFAULT_PREFS = { recent: [], favorites: [], soundEnabled: false, hasSeenSignupPrompt: false, savedAreas: [] };
 
 describe('loadPrefs', () => {
   it('returns empty recent/favorites lists when nothing is stored', () => {
@@ -74,5 +74,39 @@ describe('toggleFavorite / isFavorite', () => {
     expect(loadPrefs().favorites).toEqual(['california', 'texas']);
     toggleFavorite('california');
     expect(loadPrefs().favorites).toEqual(['texas']);
+  });
+});
+
+describe('toggleSavedArea / isAreaSaved', () => {
+  it('saves an area the first time it is toggled', () => {
+    expect(isAreaSaved('texas', 'Austin')).toBe(false);
+    toggleSavedArea('texas', 'Austin', 'Texas');
+    expect(isAreaSaved('texas', 'Austin')).toBe(true);
+  });
+
+  it('removes an area the second time it is toggled', () => {
+    toggleSavedArea('texas', 'Austin', 'Texas');
+    toggleSavedArea('texas', 'Austin', 'Texas');
+    expect(isAreaSaved('texas', 'Austin')).toBe(false);
+  });
+
+  it('matches city case-insensitively and ignores surrounding whitespace', () => {
+    toggleSavedArea('texas', '  Austin  ', 'Texas');
+    expect(isAreaSaved('texas', 'austin')).toBe(true);
+    expect(isAreaSaved('texas', 'AUSTIN')).toBe(true);
+  });
+
+  it('treats the same city in different states as distinct areas', () => {
+    toggleSavedArea('texas', 'Springfield', 'Texas');
+    expect(isAreaSaved('texas', 'Springfield')).toBe(true);
+    expect(isAreaSaved('illinois', 'Springfield')).toBe(false);
+  });
+
+  it('stores the display name and saved timestamp', () => {
+    const result = toggleSavedArea('texas', 'Austin', 'Texas');
+    expect(result.savedAreas).toEqual([
+      expect.objectContaining({ state: 'texas', city: 'Austin', stateDisplay: 'Texas' }),
+    ]);
+    expect(result.savedAreas[0].savedAt).toEqual(expect.any(String));
   });
 });

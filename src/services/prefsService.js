@@ -1,6 +1,6 @@
 const PREF_KEY = 'crimeRadarPrefs_v1';
 
-const DEFAULT_PREFS = { recent: [], favorites: [], soundEnabled: false, hasSeenSignupPrompt: false };
+const DEFAULT_PREFS = { recent: [], favorites: [], soundEnabled: false, hasSeenSignupPrompt: false, savedAreas: [] };
 
 export function loadPrefs() {
   try {
@@ -69,6 +69,35 @@ export function setSoundEnabled(value) {
   return updated;
 }
 
+// Area (state slug + city) identity for save/unsave comparisons — city is
+// free-typed by the user, so it's lowercased/trimmed the same way on both
+// sides rather than relying on exact string equality.
+function areaKey(state, city) {
+  return `${(state || '').toLowerCase()}:${(city || '').trim().toLowerCase()}`;
+}
+
+export function isAreaSaved(state, city) {
+  const key = areaKey(state, city);
+  return loadPrefs().savedAreas.some((area) => areaKey(area.state, area.city) === key);
+}
+
+export function toggleSavedArea(state, city, stateDisplay) {
+  try {
+    const prefs = loadPrefs();
+    const savedAreas = prefs.savedAreas || [];
+    const key = areaKey(state, city);
+    const exists = savedAreas.some((area) => areaKey(area.state, area.city) === key);
+    const next = exists
+      ? savedAreas.filter((area) => areaKey(area.state, area.city) !== key)
+      : [...savedAreas, { state, city: city.trim(), stateDisplay, savedAt: new Date().toISOString() }];
+    const updated = { ...prefs, savedAreas: next };
+    savePrefs(updated);
+    return updated;
+  } catch {
+    return loadPrefs();
+  }
+}
+
 export function hasSeenSignupPrompt() {
   return !!loadPrefs().hasSeenSignupPrompt;
 }
@@ -86,6 +115,8 @@ export default {
   addRecent,
   isFavorite,
   toggleFavorite,
+  isAreaSaved,
+  toggleSavedArea,
   isSoundEnabled,
   setSoundEnabled,
   hasSeenSignupPrompt,
