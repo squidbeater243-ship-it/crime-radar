@@ -995,6 +995,23 @@ describe('worker.fetch routing', () => {
       expect(res.status).toBe(400);
       expect(await res.text()).toContain("Couldn't process that link");
     });
+
+    it('rate-limits repeated unsubscribe calls from the same IP', async () => {
+      // Every other KV-mutating endpoint (view, subscribe) caps requests per
+      // IP so an unauthenticated caller can't mint unlimited free KV
+      // operations -- this endpoint used to be the one exception.
+      const env = makeEnv();
+      await subscribe(env);
+      const url = 'https://api.test/api/subscribe?' + new URLSearchParams({ email: 'user@example.com', state: 'Minnesota', city: 'Duluth' });
+      const req = () => new Request(url, { method: 'DELETE', headers: { 'cf-connecting-ip': '9.9.9.9' } });
+
+      for (let i = 0; i < 20; i++) {
+        const res = await worker.fetch(req(), env, noopCtx);
+        expect(res.status).toBe(200);
+      }
+      const limited = await worker.fetch(req(), env, noopCtx);
+      expect(limited.status).toBe(429);
+    });
   });
 });
 

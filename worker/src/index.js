@@ -529,11 +529,21 @@ export function confirmSubscribePage({ ok, state, city }) {
 </html>`;
 }
 
+// Every other KV-mutating endpoint in this file (view, subscribe) caps
+// requests per IP specifically so an unauthenticated caller can't mint
+// unlimited free KV write/delete operations -- this one was the odd one
+// out. Deliberately generous (unlike subscribe's 5/10min) since a real
+// one-click unsubscribe must never be delayed or blocked for a legitimate
+// single click; this only bounds someone hammering the endpoint.
+const UNSUB_RATE_PREFIX = 'unsubrate:';
+const UNSUB_RATE_WINDOW_SECONDS = 60;
+const UNSUB_RATE_MAX = 20;
+
 // Shared by both unsubscribe entry points: the app's fetch-based DELETE
 // (handleUnsubscribe) and the one-click link in alert emails
 // (handleUnsubscribeLink), so the validation/deletion logic can't drift
 // between the two.
-async function performUnsubscribe(searchParams, env) {
+async function performUnsubscribe(searchParams, env, request) {
   const email = (searchParams.get('email') || '').trim();
   const state = (searchParams.get('state') || '').trim();
   const city = (searchParams.get('city') || '').trim();
@@ -542,13 +552,22 @@ async function performUnsubscribe(searchParams, env) {
     return { ok: false };
   }
 
+  const ip = request.headers.get('cf-connecting-ip') || 'unknown';
+  const rateKey = `${UNSUB_RATE_PREFIX}${ip}`;
+  const recent = Number((await env.VIEWS.get(rateKey)) || '0');
+  if (recent >= UNSUB_RATE_MAX) {
+    return { ok: false, rateLimited: true };
+  }
+  await env.VIEWS.put(rateKey, String(recent + 1), { expirationTtl: UNSUB_RATE_WINDOW_SECONDS });
+
   await env.VIEWS.delete(subKey(state, city, email));
   return { ok: true, state, city };
 }
 
 async function handleUnsubscribe(request, env) {
   const url = new URL(request.url);
-  const result = await performUnsubscribe(url.searchParams, env);
+  const result = await performUnsubscribe(url.searchParams, env, request);
+  if (result.rateLimited) return json({ error: 'too many requests' }, 429);
   if (!result.ok) return json({ error: 'invalid request' }, 400);
   return json({ success: true });
 }
@@ -579,8 +598,8 @@ export function unsubscribePage({ ok, state, city }) {
 
 async function handleUnsubscribeLink(request, env) {
   const url = new URL(request.url);
-  const result = await performUnsubscribe(url.searchParams, env);
-  return html(unsubscribePage(result), result.ok ? 200 : 400);
+  const result = await performUnsubscribe(url.searchParams, env, request);
+  return html(unsubscribePage(result), result.ok ? 200 : result.rateLimited ? 429 : 400);
 }
 
 const SENT_PREFIX = 'sent:';
