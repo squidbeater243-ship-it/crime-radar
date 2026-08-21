@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { stateSlugs } from '../src/data/stateData.js';
 import { SITE_URL } from '../src/config/site.js';
 
-const STATIC_ROUTES = ['/', '/state-statistics', '/compare'];
+const STATIC_ROUTES = ['/', '/state-statistics', '/compare', '/about'];
 const routes = [...STATIC_ROUTES, ...stateSlugs.map((slug) => `/state/${slug}`)];
 
 const urls = routes

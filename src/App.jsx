@@ -7,6 +7,7 @@ import SoundToggle from './components/SoundToggle';
 import NavBar from './components/NavBar';
 import SignupTakeover from './components/SignupTakeover';
 import AlertsFab from './components/AlertsFab';
+import Footer from './components/Footer';
 import PageTransition from './components/PageTransition';
 import prefsService from './services/prefsService';
 import isPrerendering from './utils/isPrerendering';
@@ -15,6 +16,7 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const StateDetail = lazy(() => import('./pages/StateDetail'));
 const ComparePage = lazy(() => import('./pages/ComparePage'));
 const StateStatistics = lazy(() => import('./pages/StateStatistics'));
+const About = lazy(() => import('./pages/About'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const OgCard = lazy(() => import('./pages/OgCard'));
 
@@ -38,6 +40,7 @@ function AnimatedRoutes() {
         <Route path="/area-scan" element={<Navigate to="/" replace />} />
         <Route path="/local-alerts" element={<Navigate to="/" replace />} />
         <Route path="/state/:stateName" element={<PageTransition><StateDetail /></PageTransition>} />
+        <Route path="/about" element={<PageTransition><About /></PageTransition>} />
         <Route path="/og/:slug" element={<OgCard />} />
         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
       </Routes>
@@ -62,6 +65,7 @@ function AppShell({ signupOpen, onCloseSignup, onAlertsClick }) {
       <Suspense fallback={<RouteFallback />}>
         <AnimatedRoutes />
       </Suspense>
+      {!isOgRoute && <Footer />}
     </>
   );
 }
