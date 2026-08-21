@@ -62,6 +62,24 @@ recorded here so the reasoning doesn't have to be re-litigated later.
    feature, just with an explicit disclaimer instead of a silent
    discrepancy.
 
+3b. **Every state's trend chart gets a general provenance caption; Nebraska
+   gets the same stronger treatment as Florida.** Cross-checking all 50
+   states' most-recent trend value against their existing snapshot (same
+   year) turned up ~10 states differing by 8-16% — most plausibly normal
+   variance between independently-compiled data vintages (the original
+   snapshot research and the Wikipedia trend table were assembled at
+   different times, and FBI figures are known to be revised after initial
+   publication), not errors. Every trend chart gets one small caption:
+   "Independently sourced from FBI historical data; may differ slightly
+   from the snapshot above." Nebraska is the exception within the
+   exception: its existing snapshot already carries a "some figures for
+   this state come from conflicting or indirect secondary sources — treat
+   as approximate" note and a 49% gap from the trend value (156.1 vs.
+   232.7 for 2023), sourced from the Nebraska Crime Commission rather than
+   the FBI directly — the same class of state-agency-vs-FBI conflict as
+   Florida. Nebraska's trend chart gets Florida's stronger, specific
+   caveat wording instead of the generic one.
+
 4. **New `stateTrendData.js` file, not an extension of `stateData.js`.**
    Keeps the existing snapshot-stats file from growing further and keeps
    "current snapshot" and "historical series" as separate, independently
