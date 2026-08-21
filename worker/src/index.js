@@ -744,9 +744,13 @@ async function sendAlertEmail(env, email, incidentState, incidentCity, article, 
       }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    return resp.ok;
-  } catch {
-    return false;
+    // Status (or the network-error message) is returned rather than just a
+    // boolean, specifically so a location where every send fails logs *why*
+    // (e.g. a 401 across the board means the Resend key is bad) instead of
+    // just "send failed" with nothing to act on.
+    return { ok: resp.ok, status: resp.status };
+  } catch (e) {
+    return { ok: false, status: null, error: e.message };
   }
 }
 
@@ -819,16 +823,20 @@ async function runAlertCheck(env) {
         }
 
         let successCount = 0;
+        const failureReasons = [];
         for (const [email, info] of recipients) {
-          const ok = await sendAlertEmail(env, email, state, city, article, info);
-          if (ok) successCount += 1;
+          const result = await sendAlertEmail(env, email, state, city, article, info);
+          if (result.ok) successCount += 1;
+          else failureReasons.push(result.status ?? result.error ?? 'unknown');
         }
 
         if (successCount > 0) {
           summary.sent += successCount;
           await env.VIEWS.put(sentKey, '1', { expirationTtl: SENT_TTL_SECONDS });
         } else {
-          summary.errors.push(`send failed for ${article.title}`);
+          summary.errors.push(
+            `send failed for ${article.title} (${recipients.size} recipient(s), reasons: ${failureReasons.join(', ')})`
+          );
         }
       } catch (e) {
         summary.errors.push(`processing failed for ${article.title}: ${e.message}`);

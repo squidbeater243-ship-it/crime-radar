@@ -854,6 +854,43 @@ describe('worker.scheduled', () => {
     expect(logSpy).toHaveBeenCalledWith('runAlertCheck', expect.stringContaining('"locations":0'));
   });
 
+  it('records the actual failure reason (e.g. a Resend status code) when every send for an article fails', async () => {
+    // Previously this just recorded "send failed for <title>" with nothing
+    // to act on. A status code that's the same across every recipient (401
+    // here) is exactly the kind of thing that should be immediately
+    // diagnosable from the log line alone -- it means the Resend API key is
+    // bad, not that any individual recipient's address is invalid.
+    const env = makeEnv();
+    await subscribeDirect(env, 'a@example.com', 'Minnesota', 'Duluth');
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const href = String(url);
+        if (href.includes('gnews.io')) {
+          return {
+            ok: true,
+            json: async () => ({ articles: [{ title: 'Robbery downtown', url: 'https://a', source: { name: 'A' }, publishedAt: '2026-01-01' }] }),
+          };
+        }
+        if (href.includes('resend.com')) return { ok: false, status: 401, json: async () => ({}) };
+        return { ok: true, json: async () => ({ results: [] }) };
+      })
+    );
+
+    const waited = [];
+    const ctx = { waitUntil: (p) => waited.push(p) };
+    await worker.scheduled({ cron: '0 12 * * *' }, env, ctx);
+    await Promise.all(waited);
+
+    const [, loggedJson] = logSpy.mock.calls.find(([label]) => label === 'runAlertCheck');
+    const logged = JSON.parse(loggedJson);
+    expect(logged.errors).toHaveLength(1);
+    expect(logged.errors[0]).toContain('Robbery downtown');
+    expect(logged.errors[0]).toContain('401');
+  });
+
   it('logs the weekly-reset summary', async () => {
     const env = makeEnv();
     await worker.fetch(new Request('https://api.test/api/view/minnesota', { method: 'POST' }), env, noopCtx);
