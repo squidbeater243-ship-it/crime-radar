@@ -142,11 +142,19 @@ export function safeArticleUrl(url) {
   }
 }
 
+// Every external fetch in this file (GNews here, Open-Meteo, Resend x2)
+// gets an explicit timeout. Without one, a single slow/hanging third-party
+// response has no bound other than the whole Worker's execution limit --
+// on the cron path (runAlertCheck loops over every subscribed location
+// sequentially), that means one stuck request could silently starve out
+// every location queued after it, not just fail its own.
+const FETCH_TIMEOUT_MS = 8000;
+
 async function fetchNewsArticles(city, env) {
   const query = `${city} crime`;
   const apiUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=us&max=10&apikey=${env.GNEWS_API_KEY}`;
 
-  const apiResp = await fetch(apiUrl);
+  const apiResp = await fetch(apiUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!apiResp.ok) {
     throw new Error(`news source unavailable (${apiResp.status})`);
   }
@@ -229,7 +237,7 @@ export async function geocodeCity(city, state) {
   try {
     const queryName = expandCityAbbreviations(city);
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(queryName)}&count=10&language=en&format=json`;
-    const resp = await fetch(url);
+    const resp = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!resp.ok) return null;
     const data = await resp.json();
     const results = Array.isArray(data.results) ? data.results : [];
@@ -295,6 +303,7 @@ async function sendConfirmationEmail(env, email, state, city, confirmUrl) {
         subject: `Confirm your Crime Radar alerts for ${city}, ${state}`,
         html: renderConfirmSubscriptionEmailHtml({ state, city, confirmUrl }),
       }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     return resp.ok;
   } catch {
@@ -733,6 +742,7 @@ async function sendAlertEmail(env, email, incidentState, incidentCity, article, 
           distanceMiles,
         }),
       }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     return resp.ok;
   } catch {

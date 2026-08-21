@@ -328,6 +328,13 @@ describe('geocodeCity', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
     expect(await geocodeCity('Minneapolis', 'Minnesota')).toBeNull();
   });
+
+  it('bounds the request with a timeout, so a hanging geocoder cannot hang this call forever', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) });
+    vi.stubGlobal('fetch', fetchMock);
+    await geocodeCity('Minneapolis', 'Minnesota');
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+  });
 });
 
 describe('worker.fetch routing', () => {
@@ -502,6 +509,14 @@ describe('worker.fetch routing', () => {
       const res = await worker.fetch(new Request('https://api.test/api/news?city=Duluth&state=MN'), makeEnv(), noopCtx);
       expect(res.status).toBe(502);
     });
+
+    it('bounds the GNews request with a timeout', async () => {
+      stubEmptyCache();
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ articles: [] }) });
+      vi.stubGlobal('fetch', fetchMock);
+      await worker.fetch(new Request('https://api.test/api/news?city=Duluth&state=MN'), makeEnv(), noopCtx);
+      expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+    });
   });
 
   describe('POST /api/subscribe (request confirmation)', () => {
@@ -569,6 +584,7 @@ describe('worker.fetch routing', () => {
       expect(resendCall).toBeDefined();
       const sentBody = JSON.parse(resendCall[1].body);
       expect(sentBody.to).toEqual(['user@example.com']);
+      expect(resendCall[1].signal).toBeInstanceOf(AbortSignal);
 
       const [token] = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('pending:'));
       expect(sentBody.html).toContain(`/api/subscribe/confirm?token=${token.slice('pending:'.length)}`);
@@ -875,6 +891,32 @@ describe('KV list() pagination', () => {
 });
 
 describe('runAlertCheck resilience (via worker.scheduled)', () => {
+  it('bounds the alert-email send with a timeout', async () => {
+    const env = makeEnv();
+    await subscribeDirect(env, 'a@example.com', 'Minnesota', 'Duluth');
+
+    const fetchMock = vi.fn(async (url) => {
+      const href = String(url);
+      if (href.includes('gnews.io')) {
+        return {
+          ok: true,
+          json: async () => ({ articles: [{ title: 'Robbery downtown', url: 'https://a', source: { name: 'A' }, publishedAt: '2026-01-01' }] }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const waited = [];
+    const ctx = { waitUntil: (p) => waited.push(p) };
+    await worker.scheduled({ cron: '0 12 * * *' }, env, ctx);
+    await Promise.all(waited);
+
+    const resendCall = fetchMock.mock.calls.find(([reqUrl]) => String(reqUrl).includes('resend.com'));
+    expect(resendCall).toBeDefined();
+    expect(resendCall[1].signal).toBeInstanceOf(AbortSignal);
+  });
+
   it('still processes and emails a second location after the first location fails to fetch news', async () => {
     const env = makeEnv();
     await subscribeDirect(env, 'a@example.com', 'Minnesota', 'Duluth');
