@@ -62,7 +62,16 @@ async function main() {
     await page.waitForFunction(() => !document.querySelector('.animate-spin, .animate-pulse'), { timeout: 20000 });
     await page.waitForTimeout(200);
 
-    const html = await page.content();
+    let html = await page.content();
+    // index.html's Google Fonts <link> starts as media="print" with an
+    // onload handler that flips it to media="all" once loaded (the
+    // standard non-render-blocking stylesheet trick). By the time this
+    // page has finished loading for the crawl, that onload has already
+    // fired — so page.content() would otherwise bake the already-flipped
+    // "all" state into the static snapshot, silently undoing the whole
+    // point of the trick for every real visitor. Restore the pre-load
+    // state before writing the file.
+    html = html.replace(/(<link[^>]*fonts\.googleapis\.com\/css2\?family=Inter[^>]*?)\smedia="all"/, '$1 media="print"');
     const outPath = outputPathFor(route, DIST_DIR);
     mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(outPath, html);
