@@ -1,7 +1,14 @@
 const API_BASE_URL = 'https://crime-radar-api.crimeradar.workers.dev';
 const SITE_URL = 'https://crimeradar.platinumsoftwaremn.com';
 
-const SLUG_PATTERN = /^[a-z-]{2,40}$/;
+// Multi-word state names (e.g. "new york", "west virginia") are stored and
+// looked up with a literal space, matching stateData.js's key convention --
+// the frontend already sends them url-encoded ("new%20york") and expects
+// space-containing keys back from /api/views and /api/trending
+// (TrendingStates.jsx looks them up as stateData[slug] directly). Without
+// a space in this pattern, POST /api/view/new%20york can never validate,
+// silently breaking view/trending tracking for all 10 multi-word states.
+const SLUG_PATTERN = /^[a-z -]{2,40}$/;
 const WEEKLY_PREFIX = 'weekly:';
 const VIEWS_PREFIX = 'views:';
 const LAST_RESET_KEY = 'meta:lastReset';
@@ -1019,9 +1026,19 @@ export default {
       return new Response(null, { headers: CORS_HEADERS });
     }
 
-    const viewMatch = url.pathname.match(/^\/api\/view\/([a-z-]+)$/);
+    // url.pathname keeps percent-encoding as-is (e.g. "new%20york" stays
+    // literal, it is not decoded back to a space) -- match any non-slash
+    // segment here and decode it before handing it to handleView, which
+    // validates the decoded value against SLUG_PATTERN.
+    const viewMatch = url.pathname.match(/^\/api\/view\/([^/]+)$/);
     if (viewMatch && request.method === 'POST') {
-      return handleView(viewMatch[1], env, request);
+      let slug;
+      try {
+        slug = decodeURIComponent(viewMatch[1]);
+      } catch {
+        return json({ error: 'invalid slug' }, 400);
+      }
+      return handleView(slug, env, request);
     }
 
     if (url.pathname === '/api/views' && request.method === 'GET') {

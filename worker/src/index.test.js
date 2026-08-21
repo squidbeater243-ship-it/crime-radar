@@ -405,17 +405,34 @@ describe('worker.fetch routing', () => {
     });
 
     it('rejects a slug that is too short to be real (fails length, not the route pattern)', async () => {
-      // The route regex (`[a-z-]+`) only gates which characters are allowed;
-      // handleView's own SLUG_PATTERN additionally enforces a 2-40 length
-      // floor/ceiling, so a single-character slug reaches handleView and is
-      // rejected there rather than 404ing at the routing layer.
+      // The route regex (`[^/]+`) only gates that there's a non-empty,
+      // single path segment; handleView's own SLUG_PATTERN enforces the
+      // actual character set and a 2-40 length floor/ceiling, so a
+      // single-character slug reaches handleView and is rejected there.
       const res = await worker.fetch(new Request('https://api.test/api/view/a', { method: 'POST' }), makeEnv(), noopCtx);
       expect(res.status).toBe(400);
     });
 
-    it("404s for a slug containing characters the route doesn't even match", async () => {
+    it('rejects a slug with characters SLUG_PATTERN disallows (400, from handleView, not the router)', async () => {
+      // The route only requires a single non-empty segment (multi-word state
+      // names need to reach handleView undecoded -- see the multi-word test
+      // below), so character validation happens entirely in handleView's
+      // SLUG_PATTERN now, not at the routing layer.
       const res = await worker.fetch(new Request('https://api.test/api/view/Not_Valid!', { method: 'POST' }), makeEnv(), noopCtx);
-      expect(res.status).toBe(404);
+      expect(res.status).toBe(400);
+    });
+
+    it('records a view for a multi-word state slug sent url-encoded, matching how the frontend calls it', async () => {
+      // recordView() sends encodeURIComponent(normalizedState), e.g.
+      // "/api/view/new%20york" for New York -- url.pathname keeps that
+      // percent-encoding literal (does not decode it back to a space), so
+      // the route/SLUG_PATTERN both have to account for a decoded space
+      // reaching handleView, not a raw "%20".
+      const env = makeEnv();
+      const res = await worker.fetch(new Request('https://api.test/api/view/new%20york', { method: 'POST' }), env, noopCtx);
+      const body = await res.json();
+      expect(body).toEqual({ slug: 'new york', views: 1, weekly: 1 });
+      expect(await env.VIEWS.get('views:new york')).toBe('1');
     });
 
     // The route only accepts [a-z-]+ (no digits), so distinct test slugs
