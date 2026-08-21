@@ -841,6 +841,31 @@ describe('worker.scheduled', () => {
     // without the weekly-reset side effect running instead.
     expect(await env.VIEWS.get('meta:lastReset')).toBeNull();
   });
+
+  it('logs the alert-check summary, so a silent zero-sent day is actually visible somewhere', async () => {
+    const env = makeEnv();
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const waited = [];
+    const ctx = { waitUntil: (p) => waited.push(p) };
+    await worker.scheduled({ cron: '0 12 * * *' }, env, ctx);
+    await Promise.all(waited);
+
+    expect(logSpy).toHaveBeenCalledWith('runAlertCheck', expect.stringContaining('"locations":0'));
+  });
+
+  it('logs the weekly-reset summary', async () => {
+    const env = makeEnv();
+    await worker.fetch(new Request('https://api.test/api/view/minnesota', { method: 'POST' }), env, noopCtx);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const waited = [];
+    const ctx = { waitUntil: (p) => waited.push(p) };
+    await worker.scheduled({ cron: '0 0 * * SUN' }, env, ctx);
+    await Promise.all(waited);
+
+    expect(logSpy).toHaveBeenCalledWith('resetWeeklyCounts', expect.stringContaining('"resetCount":1'));
+  });
 });
 
 describe('KV list() pagination', () => {

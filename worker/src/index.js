@@ -855,6 +855,7 @@ async function resetWeeklyCounts(env) {
 
   await Promise.all(keys.map((k) => env.VIEWS.delete(k.name)));
   await env.VIEWS.put(LAST_RESET_KEY, now);
+  return { resetCount: keys.length, resetAt: now };
 }
 
 export default {
@@ -905,11 +906,20 @@ export default {
     return json({ error: 'not found' }, 404);
   },
 
+  // Both cron jobs used to run via a bare `ctx.waitUntil(fn(env))`, discarding
+  // whatever they returned. runAlertCheck in particular builds a detailed
+  // summary every day -- locations checked, articles seen, alerts sent, and
+  // any errors -- specifically so a partial failure doesn't have to crash to
+  // be visible. Without logging it, that summary went nowhere: a day where
+  // the alert check silently sent zero emails (missing API key, every fetch
+  // failing, etc.) would leave no signal anywhere that anything was wrong.
+  // console.log here is what Cloudflare's dashboard Logs/tail actually
+  // captures for a scheduled Worker.
   async scheduled(event, env, ctx) {
     if (event.cron === '0 0 * * SUN') {
-      ctx.waitUntil(resetWeeklyCounts(env));
+      ctx.waitUntil(resetWeeklyCounts(env).then((summary) => console.log('resetWeeklyCounts', JSON.stringify(summary))));
     } else {
-      ctx.waitUntil(runAlertCheck(env));
+      ctx.waitUntil(runAlertCheck(env).then((summary) => console.log('runAlertCheck', JSON.stringify(summary))));
     }
   },
 };
