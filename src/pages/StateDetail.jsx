@@ -7,6 +7,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Line,
   LineChart,
   Pie,
@@ -287,12 +288,19 @@ export default function StateDetail() {
             <h2 className="text-xl font-semibold text-white">Share of arrests by race</h2>
             <div className="mt-4 h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={arrestsByRace} margin={{ left: 0, right: 8, top: 8, bottom: 24 }}>
+                <BarChart data={arrestsByRace} margin={{ left: 0, right: 8, top: 20, bottom: 24 }}>
                   <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
                   <XAxis dataKey="name" stroke="#94a3b8" tick={{ fontSize: 11 }} interval={0} angle={-15} textAnchor="end" />
                   <YAxis stroke="#94a3b8" />
                   <Tooltip cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(148,163,184,0.2)' }} itemStyle={{ color: '#e2e8f0' }} labelStyle={{ color: '#94a3b8' }} formatter={(value) => `${value}%`} />
-                  <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="#f59e0b" />
+                  {/* Two of the four categories are ~2% vs. ~64%/~32% for
+                      the other two -- real, not a bug -- so their bars are
+                      only a couple pixels tall. A value label on every bar
+                      keeps the small categories legible without distorting
+                      the scale to fake-inflate them. */}
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]} fill="#f59e0b">
+                    <LabelList dataKey="value" position="top" formatter={(value) => `${value}%`} fill="#e2e8f0" fontSize={11} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
