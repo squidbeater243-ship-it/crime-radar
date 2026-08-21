@@ -48,6 +48,20 @@ recorded here so the reasoning doesn't have to be re-litigated later.
    as a shorter window would have cost, so there's no reason to discard data
    the source provides for free.
 
+3a. **Florida gets the FBI-methodology trend too, with a visible caveat.**
+   Discovered while sourcing the data: Florida's existing `stateData.js`
+   snapshot is intentionally sourced from FDLE (the state agency), not the
+   FBI, with an explicit note that it "differs from FBI/other states, not
+   directly comparable" — FDLE's violent crime rate for 2023 is 150.7 per
+   100k, versus 292.7 in the FBI-sourced Wikipedia trend table for the same
+   year. Every other state's snapshot already uses FBI-derived figures, so
+   this conflict is unique to Florida (verified: no other state has a
+   similar caveat). Rather than silently show two contradictory numbers,
+   Florida's trend chart gets a small note under it: "FBI-methodology
+   trend; differs from the FDLE figure above." Florida still gets the full
+   feature, just with an explicit disclaimer instead of a silent
+   discrepancy.
+
 4. **New `stateTrendData.js` file, not an extension of `stateData.js`.**
    Keeps the existing snapshot-stats file from growing further and keeps
    "current snapshot" and "historical series" as separate, independently
