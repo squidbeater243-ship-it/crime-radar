@@ -510,6 +510,81 @@ describe('worker.fetch routing', () => {
       expect(res.status).toBe(502);
       expect([...env.VIEWS.store.keys()].filter((k) => k.startsWith('pending:'))).toHaveLength(0);
     });
+
+    it('does not throttle after a failed send, so a genuine user can retry', async () => {
+      const env = makeEnv();
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+      await worker.fetch(
+        new Request('https://api.test/api/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ email: 'user@example.com', state: 'Minnesota', city: 'Duluth' }),
+        }),
+        env,
+        noopCtx
+      );
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+      const retry = await worker.fetch(
+        new Request('https://api.test/api/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ email: 'user@example.com', state: 'Minnesota', city: 'Duluth' }),
+        }),
+        env,
+        noopCtx
+      );
+      expect(retry.status).toBe(200);
+    });
+
+    it('throttles a second confirmation request for the same email instead of sending another', async () => {
+      // Confirmation alone doesn't stop this endpoint being used to mail-bomb
+      // a stranger's inbox with confirmation emails they never asked for --
+      // this cooldown is what actually stops that, independent of whether
+      // anyone ever clicks confirm.
+      const env = makeEnv();
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const req = () =>
+        worker.fetch(
+          new Request('https://api.test/api/subscribe', {
+            method: 'POST',
+            body: JSON.stringify({ email: 'victim@example.com', state: 'Minnesota', city: 'Duluth' }),
+          }),
+          env,
+          noopCtx
+        );
+
+      const first = await req();
+      expect(first.status).toBe(200);
+      const second = await req();
+      expect(second.status).toBe(429);
+
+      const resendCalls = fetchMock.mock.calls.filter(([reqUrl]) => String(reqUrl).includes('resend.com'));
+      expect(resendCalls).toHaveLength(1);
+    });
+
+    it('throttles per-email case-insensitively', async () => {
+      const env = makeEnv();
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+
+      await worker.fetch(
+        new Request('https://api.test/api/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ email: 'Victim@Example.com', state: 'Minnesota', city: 'Duluth' }),
+        }),
+        env,
+        noopCtx
+      );
+      const second = await worker.fetch(
+        new Request('https://api.test/api/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ email: 'victim@example.com', state: 'Wisconsin', city: 'Madison' }),
+        }),
+        env,
+        noopCtx
+      );
+      expect(second.status).toBe(429);
+    });
   });
 
   describe('GET /api/subscribe/confirm', () => {

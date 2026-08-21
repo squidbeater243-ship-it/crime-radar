@@ -11,6 +11,8 @@ const SUB_PREFIX = 'sub:';
 const NEWS_CACHE_TTL_SECONDS = 600;
 const PENDING_PREFIX = 'pending:';
 const PENDING_TTL_SECONDS = 60 * 60 * 24;
+const SUBSCRIBE_THROTTLE_PREFIX = 'subthrottle:';
+const SUBSCRIBE_THROTTLE_SECONDS = 5 * 60;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -287,6 +289,15 @@ async function handleSubscribe(request, env) {
     return json({ error: 'email service not configured' }, 500);
   }
 
+  // Confirmation alone doesn't stop *this* endpoint from being used to
+  // spam a stranger's inbox with confirmation emails they never asked
+  // for -- it only stops fake signups from receiving ongoing alert
+  // emails. Cap how often a given address can trigger a new one.
+  const throttleKey = `${SUBSCRIBE_THROTTLE_PREFIX}${email.toLowerCase()}`;
+  if (await env.VIEWS.get(throttleKey)) {
+    return json({ error: 'a confirmation email was already sent recently -- check your inbox' }, 429);
+  }
+
   const token = crypto.randomUUID();
   await env.VIEWS.put(
     `${PENDING_PREFIX}${token}`,
@@ -300,6 +311,10 @@ async function handleSubscribe(request, env) {
     await env.VIEWS.delete(`${PENDING_PREFIX}${token}`);
     return json({ error: 'failed to send confirmation email' }, 502);
   }
+
+  // Only start the cooldown once an email has actually gone out, so a
+  // transient send failure doesn't lock a genuine user out of retrying.
+  await env.VIEWS.put(throttleKey, '1', { expirationTtl: SUBSCRIBE_THROTTLE_SECONDS });
 
   return json({ success: true, pending: true });
 }
