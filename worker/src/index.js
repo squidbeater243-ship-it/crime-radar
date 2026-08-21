@@ -59,10 +59,29 @@ async function handleView(slug, env) {
   return json({ slug, views, weekly });
 }
 
+// KV's list() caps out at 1000 keys per call (returning a cursor for the
+// rest) -- none of this worker's three list() call sites handled that
+// pagination, so any prefix that ever grew past 1000 keys would silently
+// process only the first 1000 with no error anywhere. views:/weekly: are
+// bounded by the fixed set of real states today, but sub: (every
+// subscriber-location pair) is exactly the kind of count that's meant to
+// grow, and growing past 1000 would have meant some subscribers silently
+// stopped receiving alerts.
+async function listAllKeys(env, prefix) {
+  const keys = [];
+  let cursor;
+  for (;;) {
+    const page = await env.VIEWS.list({ prefix, cursor });
+    keys.push(...page.keys);
+    if (page.list_complete) return keys;
+    cursor = page.cursor;
+  }
+}
+
 async function listCounts(env, prefix) {
-  const list = await env.VIEWS.list({ prefix });
+  const keys = await listAllKeys(env, prefix);
   const entries = await Promise.all(
-    list.keys.map(async (k) => {
+    keys.map(async (k) => {
       const slug = k.name.slice(prefix.length);
       const count = Number((await env.VIEWS.get(k.name)) || '0');
       return [slug, count];
@@ -536,10 +555,10 @@ async function sha256Hex(text) {
 }
 
 async function getSubscribersByLocation(env) {
-  const list = await env.VIEWS.list({ prefix: SUB_PREFIX });
+  const keys = await listAllKeys(env, SUB_PREFIX);
   const locations = new Map();
 
-  for (const k of list.keys) {
+  for (const k of keys) {
     const raw = await env.VIEWS.get(k.name);
     if (!raw) continue;
     let record;
@@ -788,9 +807,9 @@ async function runAlertCheck(env) {
 }
 
 async function resetWeeklyCounts(env) {
-  const list = await env.VIEWS.list({ prefix: WEEKLY_PREFIX });
+  const keys = await listAllKeys(env, WEEKLY_PREFIX);
   const snapshot = {};
-  for (const k of list.keys) {
+  for (const k of keys) {
     const slug = k.name.slice(WEEKLY_PREFIX.length);
     snapshot[slug] = Number((await env.VIEWS.get(k.name)) || '0');
   }
@@ -802,7 +821,7 @@ async function resetWeeklyCounts(env) {
   // count would go unnoticed indefinitely otherwise.
   await env.VIEWS.put(`${ARCHIVE_PREFIX}${now}`, JSON.stringify(snapshot), { expirationTtl: ARCHIVE_TTL_SECONDS });
 
-  await Promise.all(list.keys.map((k) => env.VIEWS.delete(k.name)));
+  await Promise.all(keys.map((k) => env.VIEWS.delete(k.name)));
   await env.VIEWS.put(LAST_RESET_KEY, now);
 }
 

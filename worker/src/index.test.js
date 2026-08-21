@@ -15,7 +15,10 @@ import worker, {
 // In-memory stand-in for the Cloudflare KV namespace binding (`env.VIEWS`).
 // Mirrors the subset of the real KV API this worker actually calls:
 // get/put/delete plus prefix-based list.
-function createFakeKv() {
+// pageSize defaults to real KV's actual page cap (1000) but is overridable
+// so tests can exercise the multi-page path (listAllKeys's cursor loop)
+// without needing 1000+ fake entries.
+function createFakeKv({ pageSize = 1000 } = {}) {
   const store = new Map();
   // expirationTtl is recorded separately (not just discarded) so tests can
   // assert a key was actually written with a TTL, not just that it exists --
@@ -38,15 +41,25 @@ function createFakeKv() {
       store.delete(key);
       ttls.delete(key);
     },
-    async list({ prefix = '' } = {}) {
-      const keys = [...store.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name }));
-      return { keys };
+    async list({ prefix = '', cursor } = {}) {
+      const matched = [...store.keys()].filter((k) => k.startsWith(prefix));
+      const start = cursor ? Number(cursor) : 0;
+      const page = matched.slice(start, start + pageSize).map((name) => ({ name }));
+      const end = start + page.length;
+      const list_complete = end >= matched.length;
+      return { keys: page, list_complete, cursor: list_complete ? undefined : String(end) };
     },
   };
 }
 
 function makeEnv(overrides = {}) {
-  return { VIEWS: createFakeKv(), GNEWS_API_KEY: 'test-gnews-key', RESEND_API_KEY: 'test-resend-key', ...overrides };
+  const { kvPageSize, ...rest } = overrides;
+  return {
+    VIEWS: createFakeKv({ pageSize: kvPageSize }),
+    GNEWS_API_KEY: 'test-gnews-key',
+    RESEND_API_KEY: 'test-resend-key',
+    ...rest,
+  };
 }
 
 const noopCtx = { waitUntil: () => {} };
@@ -757,6 +770,53 @@ describe('worker.scheduled', () => {
     // this just confirms it took the alert-check branch and completed
     // without the weekly-reset side effect running instead.
     expect(await env.VIEWS.get('meta:lastReset')).toBeNull();
+  });
+});
+
+describe('KV list() pagination', () => {
+  it('handleAllViews sees every key across multiple pages, not just the first page', async () => {
+    const env = makeEnv({ kvPageSize: 2 });
+    // 5 keys against a page size of 2 forces 3 pages -- if listAllKeys
+    // didn't follow the cursor, only the first 2 would show up here.
+    for (const slug of ['alabama', 'alaska', 'arizona', 'arkansas', 'california']) {
+      await worker.fetch(new Request(`https://api.test/api/view/${slug}`, { method: 'POST' }), env, noopCtx);
+    }
+
+    const body = await (await worker.fetch(new Request('https://api.test/api/views'), env, noopCtx)).json();
+    expect(Object.keys(body.views).sort()).toEqual(['alabama', 'alaska', 'arizona', 'arkansas', 'california']);
+  });
+
+  it('the daily alert check reaches a subscriber past the first KV list page', async () => {
+    const env = makeEnv({ kvPageSize: 1 });
+    // Two subscribers in two different locations, page size 1 -- the second
+    // location only exists on page 2. Before the fix, getSubscribersByLocation
+    // would have silently only ever seen the first.
+    await subscribeDirect(env, 'a@example.com', 'Minnesota', 'Duluth');
+    await subscribeDirect(env, 'b@example.com', 'Wisconsin', 'Madison');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const href = String(url);
+        if (href.includes('gnews.io')) {
+          return {
+            ok: true,
+            json: async () => ({ articles: [{ title: 'Robbery downtown', url: `https://a/${href}`, source: { name: 'A' }, publishedAt: '2026-01-01' }] }),
+          };
+        }
+        if (href.includes('resend.com')) return { ok: true, json: async () => ({}) };
+        return { ok: true, json: async () => ({ results: [] }) };
+      })
+    );
+
+    const waited = [];
+    const ctx = { waitUntil: (p) => waited.push(p) };
+    await worker.scheduled({ cron: '0 12 * * *' }, env, ctx);
+    await Promise.all(waited);
+
+    const sentKeys = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('sent:'));
+    expect(sentKeys.some((k) => k.includes('minnesota'))).toBe(true);
+    expect(sentKeys.some((k) => k.includes('wisconsin'))).toBe(true);
   });
 });
 
