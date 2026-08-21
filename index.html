@@ -29,7 +29,21 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Loaded non-render-blocking: the media="print" swapped to "all" on
+         load is the standard async-stylesheet trick, since a plain
+         <link rel="stylesheet"> blocks first paint until the CSS arrives.
+         &display=swap (in the URL) already prevents invisible text while
+         it loads, so this only affects *when* the swap can happen, not
+         whether text is readable in the meantime. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    </noscript>
     <title>Crime Radar</title>
     <script id="site-structured-data" type="application/ld+json">
       {
