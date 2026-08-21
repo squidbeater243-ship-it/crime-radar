@@ -206,9 +206,17 @@ export default function UsMap() {
                         onMouseEnter={() => known && handleEnter(geo)}
                         onMouseLeave={handleLeave}
                         onClick={() => known && handleClick(geo)}
+                        onKeyDown={(event) => {
+                          if (!known) return;
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            handleClick(geo);
+                          }
+                        }}
                         style={geographyStyle(known, severityColorBySlug[slug])}
                         className={known ? 'cursor-pointer' : 'cursor-default'}
                         tabIndex={known ? 0 : -1}
+                        role={known ? 'button' : undefined}
                         aria-label={
                           known
                             ? `View ${stateData[slug].displayName} details — safety grade ${getSafetyGrade(getSafetyScore(stateData[slug], crimeIndexRange))}`

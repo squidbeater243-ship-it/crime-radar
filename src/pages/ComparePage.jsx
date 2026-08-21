@@ -60,7 +60,7 @@ function RankList({ title, unit, rows, color, safetyScores }) {
         </div>
       </div>
       <div>
-        <p className="mb-2 text-xs uppercase tracking-[0.28em] text-slate-500">Lowest — {title}</p>
+        <p className="mb-2 text-xs uppercase tracking-[0.28em] text-slate-400">Lowest — {title}</p>
         <div className="space-y-1.5">
           {bottom.map((item, i) => (
             <Row key={item.slug} rank={i + 1} item={item} />
@@ -226,7 +226,7 @@ export default function ComparePage() {
               </RadarChart>
             </ResponsiveContainer>
           </div>
-          <p className="mt-1 text-center text-xs text-slate-500">
+          <p className="mt-1 text-center text-xs text-slate-400">
             Each axis is scaled 0-100 against all 50 states, so the shapes compare where each state sits nationally — not raw numbers.
           </p>
         </div>

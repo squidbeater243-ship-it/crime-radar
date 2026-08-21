@@ -90,9 +90,11 @@ export default function GlassSearchBar() {
             onKeyDown={onKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
+            role="combobox"
             aria-autocomplete="list"
             aria-controls="state-suggestions"
             aria-expanded={open && isFocused}
+            aria-haspopup="listbox"
             placeholder="Type a state name and press enter"
             className="w-full bg-transparent text-base text-white outline-none placeholder:text-slate-400"
           />

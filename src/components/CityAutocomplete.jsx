@@ -82,9 +82,11 @@ export default function CityAutocomplete({
         placeholder={placeholder}
         required
         aria-label={ariaLabel}
+        role="combobox"
         aria-autocomplete="list"
         aria-controls={listId}
         aria-expanded={open && isFocused}
+        aria-haspopup="listbox"
         autoComplete="off"
         className={inputClassName}
       />
