@@ -427,7 +427,7 @@ describe('worker.fetch routing', () => {
     });
   });
 
-  describe('POST /api/subscribe', () => {
+  describe('POST /api/subscribe (request confirmation)', () => {
     it('rejects an invalid email', async () => {
       const req = new Request('https://api.test/api/subscribe', {
         method: 'POST',
@@ -443,29 +443,136 @@ describe('worker.fetch routing', () => {
       expect(res.status).toBe(400);
     });
 
-    it('stores a lowercased email against the given city/state on success', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
+    it('returns 500 when the email service is not configured', async () => {
+      const req = new Request('https://api.test/api/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'user@example.com', state: 'MN', city: 'Duluth' }),
+      });
+      const res = await worker.fetch(req, makeEnv({ RESEND_API_KEY: undefined }), noopCtx);
+      expect(res.status).toBe(500);
+    });
+
+    it('does NOT activate the subscription immediately -- only a pending record is created', async () => {
+      // This is the actual fix: anyone typing in an email address must not
+      // be able to activate alerts for it without proving they own it.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
       const env = makeEnv();
       const req = new Request('https://api.test/api/subscribe', {
         method: 'POST',
         body: JSON.stringify({ email: 'User@Example.com', state: 'Minnesota', city: 'Duluth' }),
       });
       const res = await worker.fetch(req, env, noopCtx);
-      expect(res.status).toBe(200);
+      const resBody = await res.json();
 
-      const stored = JSON.parse(await env.VIEWS.get(subKey('Minnesota', 'Duluth', 'User@Example.com')));
-      expect(stored.email).toBe('user@example.com');
-      expect(stored.lat).toBeNull();
+      expect(res.status).toBe(200);
+      expect(resBody).toEqual({ success: true, pending: true });
+      expect(await env.VIEWS.get(subKey('Minnesota', 'Duluth', 'User@Example.com'))).toBeNull();
+
+      const pendingKeys = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('pending:'));
+      expect(pendingKeys).toHaveLength(1);
+      const pending = JSON.parse(await env.VIEWS.get(pendingKeys[0]));
+      expect(pending).toMatchObject({ email: 'user@example.com', state: 'Minnesota', city: 'Duluth' });
+    });
+
+    it('emails a confirmation link pointing at the pending token', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+      vi.stubGlobal('fetch', fetchMock);
+      const env = makeEnv();
+      await worker.fetch(
+        new Request('https://api.test/api/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ email: 'user@example.com', state: 'Minnesota', city: 'Duluth' }),
+        }),
+        env,
+        noopCtx
+      );
+
+      const resendCall = fetchMock.mock.calls.find(([reqUrl]) => String(reqUrl).includes('resend.com'));
+      expect(resendCall).toBeDefined();
+      const sentBody = JSON.parse(resendCall[1].body);
+      expect(sentBody.to).toEqual(['user@example.com']);
+
+      const [token] = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('pending:'));
+      expect(sentBody.html).toContain(`/api/subscribe/confirm?token=${token.slice('pending:'.length)}`);
+    });
+
+    it('returns 502 and discards the pending record when the confirmation email fails to send', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+      const env = makeEnv();
+      const res = await worker.fetch(
+        new Request('https://api.test/api/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ email: 'user@example.com', state: 'Minnesota', city: 'Duluth' }),
+        }),
+        env,
+        noopCtx
+      );
+      expect(res.status).toBe(502);
+      expect([...env.VIEWS.store.keys()].filter((k) => k.startsWith('pending:'))).toHaveLength(0);
     });
   });
 
-  describe('DELETE /api/subscribe and GET /api/unsubscribe', () => {
-    async function subscribe(env, email = 'user@example.com', state = 'Minnesota', city = 'Duluth') {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
+  describe('GET /api/subscribe/confirm', () => {
+    async function requestSubscription(env, email = 'user@example.com', state = 'Minnesota', city = 'Duluth') {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
       await worker.fetch(
         new Request('https://api.test/api/subscribe', { method: 'POST', body: JSON.stringify({ email, state, city }) }),
         env,
         noopCtx
+      );
+      const [pendingKey] = [...env.VIEWS.store.keys()].filter((k) => k.startsWith('pending:'));
+      vi.unstubAllGlobals();
+      return pendingKey.slice('pending:'.length);
+    }
+
+    it('activates the subscription and consumes the token', async () => {
+      const env = makeEnv();
+      const token = await requestSubscription(env);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
+
+      const res = await worker.fetch(new Request(`https://api.test/api/subscribe/confirm?token=${token}`), env, noopCtx);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain("You're subscribed");
+
+      const stored = JSON.parse(await env.VIEWS.get(subKey('Minnesota', 'Duluth', 'user@example.com')));
+      expect(stored.email).toBe('user@example.com');
+      expect(await env.VIEWS.get(`pending:${token}`)).toBeNull();
+    });
+
+    it('rejects a missing token', async () => {
+      const res = await worker.fetch(new Request('https://api.test/api/subscribe/confirm'), makeEnv(), noopCtx);
+      expect(res.status).toBe(400);
+      expect(await res.text()).toContain("Couldn't confirm");
+    });
+
+    it('rejects an unknown or already-used token', async () => {
+      const res = await worker.fetch(
+        new Request('https://api.test/api/subscribe/confirm?token=not-a-real-token'),
+        makeEnv(),
+        noopCtx
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('cannot be replayed a second time', async () => {
+      const env = makeEnv();
+      const token = await requestSubscription(env);
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
+
+      await worker.fetch(new Request(`https://api.test/api/subscribe/confirm?token=${token}`), env, noopCtx);
+      const second = await worker.fetch(new Request(`https://api.test/api/subscribe/confirm?token=${token}`), env, noopCtx);
+      expect(second.status).toBe(400);
+    });
+  });
+
+  describe('DELETE /api/subscribe and GET /api/unsubscribe', () => {
+    // These test the already-active-subscriber path, which is independent of
+    // the subscribe/confirm flow above -- write the KV record directly
+    // rather than going through two real HTTP round-trips per test.
+    async function subscribe(env, email = 'user@example.com', state = 'Minnesota', city = 'Duluth') {
+      await env.VIEWS.put(
+        subKey(state, city, email),
+        JSON.stringify({ email: email.toLowerCase(), state, city, lat: null, lon: null, subscribedAt: new Date().toISOString() })
       );
     }
 
@@ -604,12 +711,13 @@ describe('runAlertCheck resilience (via worker.scheduled)', () => {
   });
 });
 
+// Writes an already-confirmed subscriber straight into the fake KV store --
+// these tests are about runAlertCheck's failure isolation, not the
+// subscribe/confirm flow itself, so they only need an active subscriber to
+// already exist.
 async function subscribeDirect(env, email, state, city) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
-  await worker.fetch(
-    new Request('https://api.test/api/subscribe', { method: 'POST', body: JSON.stringify({ email, state, city }) }),
-    env,
-    noopCtx
+  await env.VIEWS.put(
+    subKey(state, city, email),
+    JSON.stringify({ email: email.toLowerCase(), state, city, lat: null, lon: null, subscribedAt: new Date().toISOString() })
   );
-  vi.unstubAllGlobals();
 }

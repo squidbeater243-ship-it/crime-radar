@@ -5,7 +5,7 @@ import { ExternalLink, Heart, Mail, Radar } from 'lucide-react';
 import stateData, { stateSlugs } from '../data/stateData';
 import usePageMeta from '../hooks/usePageMeta';
 import { getLocalNews } from '../services/newsService';
-import { subscribe, unsubscribe } from '../services/subscribeService';
+import { subscribe } from '../services/subscribeService';
 import prefsService from '../services/prefsService';
 import cityService from '../services/cityService';
 import { computeCrimeIndexRange, getSafetyScore } from '../utils/stateStats';
@@ -94,19 +94,7 @@ function EmailSignup({ city, stateDisplay }) {
     setStatus('submitting');
     try {
       await subscribe(email.trim(), stateDisplay, city);
-      setStatus('subscribed');
-    } catch {
-      setStatus('error');
-    }
-  };
-
-  const handleUnsubscribe = async () => {
-    setStatus('submitting');
-    try {
-      await unsubscribe(email.trim(), stateDisplay, city);
-      setStatus('idle');
-      setEmail('');
-      setAgreed(false);
+      setStatus('pending');
     } catch {
       setStatus('error');
     }
@@ -125,18 +113,17 @@ function EmailSignup({ city, stateDisplay }) {
         We&apos;ll only send an email for significant crime news here — not routine headlines. Unsubscribe anytime.
       </p>
 
-      {status === 'subscribed' ? (
-        <div className="mt-4 flex flex-col items-start gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-emerald-200">
-            You&apos;re signed up. Alerts for {city}, {stateDisplay} will go to {email}.
+      {status === 'pending' ? (
+        // Signing up only requests a confirmation email -- it can't activate
+        // alerts immediately, since that would let anyone type in a
+        // stranger's address and sign them up. There's nothing active to
+        // offer an "Unsubscribe" control for yet; that lives in the
+        // confirmation/alert emails themselves as a one-click link.
+        <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
+          <p className="text-sm text-cyan-100">
+            Almost there — check <strong>{email}</strong> for a confirmation link. Alerts for {city}, {stateDisplay} start once you
+            confirm.
           </p>
-          <button
-            type="button"
-            onClick={handleUnsubscribe}
-            className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
-          >
-            Unsubscribe
-          </button>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">

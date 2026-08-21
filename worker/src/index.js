@@ -9,6 +9,8 @@ const LOCATION_PATTERN = /^[a-zA-Z0-9 .'-]{1,80}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SUB_PREFIX = 'sub:';
 const NEWS_CACHE_TTL_SECONDS = 600;
+const PENDING_PREFIX = 'pending:';
+const PENDING_TTL_SECONDS = 60 * 60 * 24;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -197,6 +199,72 @@ export async function geocodeCity(city, state) {
   }
 }
 
+// Confirmation-email HTML, in the same table-based/inlined style as
+// renderAlertEmailHtml (see that function's comment for why: it's the
+// safest baseline across Gmail/Outlook/Apple Mail).
+function renderConfirmSubscriptionEmailHtml({ state, city, confirmUrl }) {
+  const location = `${escapeHtml(city)}, ${escapeHtml(state)}`;
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirm your Crime Radar alerts</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f1f5f9;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,0.08);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+            <tr>
+              <td style="background-color:#0f172a;padding:24px 32px;">
+                <span style="font-size:13px;font-weight:700;letter-spacing:3px;color:#38bdf8;text-transform:uppercase;">Crime Radar</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <h1 style="margin:0 0 16px;font-size:22px;line-height:1.35;color:#0f172a;">Confirm your alerts for ${location}</h1>
+                <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#475569;">Someone (hopefully you) asked to receive Crime Radar email alerts for ${location}. Click below to confirm -- if this wasn't you, just ignore this email and nothing further will happen.</p>
+                <a href="${confirmUrl}" style="display:inline-block;padding:12px 24px;background-color:#0ea5e9;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:999px;">Confirm alerts for ${location}</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+async function sendConfirmationEmail(env, email, state, city, confirmUrl) {
+  try {
+    const resp = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Crime Radar Alerts <alerts@mail.platinumsoftwaremn.com>',
+        to: [email],
+        subject: `Confirm your Crime Radar alerts for ${city}, ${state}`,
+        html: renderConfirmSubscriptionEmailHtml({ state, city, confirmUrl }),
+      }),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Subscribing does NOT activate alerts immediately -- it only stores a
+// pending request keyed by a random token and emails a confirmation link
+// (handleConfirmSubscribe below actually creates the `sub:` record). Without
+// this, anyone could type in a stranger's email address and sign them up for
+// recurring alert emails they never asked for: unwanted mail at best,
+// harassment at worst, and enough of it risks the sending domain's
+// deliverability reputation. This mirrors the one-click unsubscribe link
+// already used for the opposite direction.
 async function handleSubscribe(request, env) {
   let body;
   try {
@@ -215,10 +283,47 @@ async function handleSubscribe(request, env) {
   if (!LOCATION_PATTERN.test(city) || !LOCATION_PATTERN.test(state)) {
     return json({ error: 'invalid city or state' }, 400);
   }
+  if (!env.RESEND_API_KEY) {
+    return json({ error: 'email service not configured' }, 500);
+  }
 
+  const token = crypto.randomUUID();
+  await env.VIEWS.put(
+    `${PENDING_PREFIX}${token}`,
+    JSON.stringify({ email: email.toLowerCase(), state, city, requestedAt: new Date().toISOString() }),
+    { expirationTtl: PENDING_TTL_SECONDS }
+  );
+
+  const confirmUrl = `${API_BASE_URL}/api/subscribe/confirm?token=${token}`;
+  const sent = await sendConfirmationEmail(env, email, state, city, confirmUrl);
+  if (!sent) {
+    await env.VIEWS.delete(`${PENDING_PREFIX}${token}`);
+    return json({ error: 'failed to send confirmation email' }, 502);
+  }
+
+  return json({ success: true, pending: true });
+}
+
+async function handleConfirmSubscribe(request, env) {
+  const url = new URL(request.url);
+  const token = (url.searchParams.get('token') || '').trim();
+  if (!token) return html(confirmSubscribePage({ ok: false }), 400);
+
+  const pendingKey = `${PENDING_PREFIX}${token}`;
+  const raw = await env.VIEWS.get(pendingKey);
+  if (!raw) return html(confirmSubscribePage({ ok: false }), 400);
+
+  let pending;
+  try {
+    pending = JSON.parse(raw);
+  } catch {
+    return html(confirmSubscribePage({ ok: false }), 400);
+  }
+
+  const { email, state, city } = pending;
   const coords = await geocodeCity(city, state);
   const record = {
-    email: email.toLowerCase(),
+    email,
     state,
     city,
     lat: coords?.lat ?? null,
@@ -226,8 +331,33 @@ async function handleSubscribe(request, env) {
     subscribedAt: new Date().toISOString(),
   };
   await env.VIEWS.put(subKey(state, city, email), JSON.stringify(record));
+  await env.VIEWS.delete(pendingKey);
 
-  return json({ success: true });
+  return html(confirmSubscribePage({ ok: true, state, city }));
+}
+
+export function confirmSubscribePage({ ok, state, city }) {
+  const heading = ok ? "You're subscribed" : "Couldn't confirm that link";
+  const body = ok
+    ? `You'll get an email when something significant happens in <strong>${escapeHtml(city)}, ${escapeHtml(state)}</strong>. Unsubscribe anytime from the link in any alert email.`
+    : 'This confirmation link is invalid or has expired. Head back to the site to sign up again.';
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${heading} — Crime Radar</title>
+  </head>
+  <body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#020617 0%,#111827 50%,#0f172a 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#f8fafc;padding:24px;box-sizing:border-box;">
+    <div style="max-width:420px;width:100%;text-align:center;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);border-radius:24px;padding:40px 32px;">
+      <p style="margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:3px;color:#67e8f9;text-transform:uppercase;">Crime Radar</p>
+      <h1 style="margin:0 0 16px;font-size:22px;color:#ffffff;">${heading}</h1>
+      <p style="margin:0 0 28px;font-size:14px;line-height:1.6;color:#cbd5e1;">${body}</p>
+      <a href="${SITE_URL}/local-alerts" style="display:inline-block;padding:10px 24px;border-radius:999px;border:1px solid rgba(56,189,248,0.3);background:rgba(14,165,233,0.15);color:#a5f3fc;font-size:14px;font-weight:600;text-decoration:none;">Manage alerts</a>
+    </div>
+  </body>
+</html>`;
 }
 
 // Shared by both unsubscribe entry points: the app's fetch-based DELETE
@@ -686,6 +816,10 @@ export default {
 
     if (url.pathname === '/api/subscribe' && request.method === 'POST') {
       return handleSubscribe(request, env);
+    }
+
+    if (url.pathname === '/api/subscribe/confirm' && request.method === 'GET') {
+      return handleConfirmSubscribe(request, env);
     }
 
     if (url.pathname === '/api/subscribe' && request.method === 'DELETE') {
