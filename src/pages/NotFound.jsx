@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Radar } from 'lucide-react';
+import FadeIn from '../components/FadeIn';
 import usePageMeta from '../hooks/usePageMeta';
 
 export default function NotFound() {
@@ -7,7 +8,7 @@ export default function NotFound() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.15),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.15),_transparent_30%)] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-md flex-col items-center rounded-[2rem] border border-white/15 bg-white/10 p-10 text-center shadow-2xl shadow-cyan-500/10 backdrop-blur-2xl">
+      <FadeIn y={14} duration={0.35} className="mx-auto flex max-w-md flex-col items-center rounded-[2rem] border border-white/15 bg-white/10 p-10 text-center shadow-2xl shadow-cyan-500/10 backdrop-blur-2xl">
         <div className="flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/10">
           <Radar className="h-6 w-6 text-cyan-300" aria-hidden />
         </div>
@@ -23,7 +24,7 @@ export default function NotFound() {
           <ArrowLeft className="h-4 w-4" />
           Back home
         </Link>
-      </div>
+      </FadeIn>
     </div>
   );
 }
