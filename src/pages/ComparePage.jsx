@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Activity, Landmark, ShieldAlert } from 'lucide-react';
 import {
   PolarAngleAxis,
@@ -25,12 +26,15 @@ import {
 import SafetyBadge from '../components/SafetyBadge';
 import CountUp from '../components/CountUp';
 import FadeIn from '../components/FadeIn';
+import { EASE_OUT_STRONG } from '../utils/motion';
 
 const compareOptions = stateSlugs.map((slug) => ({ slug, label: stateData[slug].displayName }));
 
 function RankList({ title, unit, rows, color, safetyScores }) {
   const top = rows.slice(0, 5);
   const bottom = rows.slice(-5).reverse();
+  const prefersReducedMotion = useReducedMotion();
+  const rowDelay = (i) => (prefersReducedMotion ? 0 : i * 0.04);
 
   const Row = ({ rank, item }) => (
     <Link
@@ -55,7 +59,14 @@ function RankList({ title, unit, rows, color, safetyScores }) {
         <p className={`mb-2 text-xs uppercase tracking-[0.28em] ${color}`}>Highest — {title}</p>
         <div className="space-y-1.5">
           {top.map((item, i) => (
-            <Row key={item.slug} rank={i + 1} item={item} />
+            <motion.div
+              key={item.slug}
+              initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: rowDelay(i), ease: EASE_OUT_STRONG }}
+            >
+              <Row rank={i + 1} item={item} />
+            </motion.div>
           ))}
         </div>
       </div>
@@ -63,7 +74,14 @@ function RankList({ title, unit, rows, color, safetyScores }) {
         <p className="mb-2 text-xs uppercase tracking-[0.28em] text-slate-400">Lowest — {title}</p>
         <div className="space-y-1.5">
           {bottom.map((item, i) => (
-            <Row key={item.slug} rank={i + 1} item={item} />
+            <motion.div
+              key={item.slug}
+              initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: rowDelay(i), ease: EASE_OUT_STRONG }}
+            >
+              <Row rank={i + 1} item={item} />
+            </motion.div>
           ))}
         </div>
       </div>
@@ -248,6 +266,7 @@ export default function ComparePage() {
           </nav>
           <div className="mt-4">
             <RankList
+              key={rankTab}
               title={activeRankTab.label}
               unit={rankUnit}
               rows={rankRows[rankTab]}
