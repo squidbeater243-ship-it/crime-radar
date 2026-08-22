@@ -19,3 +19,10 @@ worker/.wrangler
 # OS/editor cruft
 .DS_Store
 Thumbs.db
+
+# Local agent/skill tooling state (installed via `npx skills add`) --
+# skills-lock.json stays tracked so the exact same skills can be
+# reinstalled elsewhere; the installed content itself is regenerable,
+# like node_modules.
+.claude
+.agents/skills
