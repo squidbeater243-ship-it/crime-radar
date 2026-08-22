@@ -6,6 +6,7 @@ import { animate, motion, useReducedMotion } from 'framer-motion';
 import stateData, { normalizeStateName } from '../data/stateData';
 import { computeCrimeIndexRange, getCombinedCrimeIndex, getSafetyGrade, getSafetyScore, getSeverityColor } from '../utils/stateStats';
 import { playPing } from '../utils/sounds';
+import { EASE_OUT_STRONG } from '../utils/motion';
 
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
 const MAP_WIDTH = 960;
@@ -137,7 +138,7 @@ export default function UsMap() {
     controlsRef.current?.stop();
     controlsRef.current = animate(0, 1, {
       duration: 0.9,
-      ease: [0.16, 1, 0.3, 1],
+      ease: EASE_OUT_STRONG,
       onUpdate: (t) => {
         setPosition({
           center: [

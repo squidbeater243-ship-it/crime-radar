@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { animate, useMotionValue, useMotionValueEvent, useReducedMotion } from 'framer-motion';
+import { EASE_OUT_STRONG } from '../utils/motion';
 
 // Animates a number counting up from its previous value to `value` whenever
 // `value` changes. Falls back to an instant jump when the user prefers
@@ -24,7 +25,7 @@ export default function CountUp({ value, duration = 0.8, format, className }) {
       if (spanRef.current) spanRef.current.textContent = render(numericValue);
       return undefined;
     }
-    const controls = animate(motionValue, numericValue, { duration, ease: [0.16, 1, 0.3, 1] });
+    const controls = animate(motionValue, numericValue, { duration, ease: EASE_OUT_STRONG });
     return () => controls.stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numericValue, prefersReducedMotion]);
