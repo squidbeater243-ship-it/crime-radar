@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Radar, ShieldCheck, X } from 'lucide-react';
 import stateData, { stateSlugs } from '../data/stateData';
@@ -16,6 +16,20 @@ export default function SignupTakeover({ open, onClose }) {
   const [agreed, setAgreed] = useState(false);
   const [status, setStatus] = useState('idle');
   const prefersReducedMotion = useReducedMotion();
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    // Move focus into the dialog so screen readers announce it immediately,
+    // and let Escape dismiss it like any native dialog -- it has no other
+    // keyboard-accessible close route besides tabbing all the way to the X.
+    dialogRef.current?.focus();
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -44,6 +58,8 @@ export default function SignupTakeover({ open, onClose }) {
           role="dialog"
           aria-modal="true"
           aria-label="Sign up for local crime alerts"
+          ref={dialogRef}
+          tabIndex={-1}
         >
           <RadarBackdrop size={780} top="-8%" className="opacity-80" />
 

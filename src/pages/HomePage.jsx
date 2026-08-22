@@ -12,6 +12,7 @@ import { computeCrimeIndexRange, getSafetyScore } from '../utils/stateStats';
 import RadarBackdrop from '../components/RadarBackdrop';
 import SafetyBadge from '../components/SafetyBadge';
 import SavedAreas from '../components/SavedAreas';
+import TrendingStates from '../components/TrendingStates';
 import CityAutocomplete from '../components/CityAutocomplete';
 import FadeIn from '../components/FadeIn';
 
@@ -381,6 +382,15 @@ export default function HomePage() {
           <EmailSignup city={submitted.city} stateDisplay={stateData[submitted.state]?.displayName || submitted.state} />
         )}
       </div>
+
+      {/* Fills the empty space below the fold for first-time visitors who
+          haven't scanned anything yet -- once they have a result, that
+          area's busy with news items/signup instead. */}
+      {!submitted && (
+        <div className="relative mx-auto mt-10 max-w-2xl">
+          <TrendingStates />
+        </div>
+      )}
     </div>
   );
 }

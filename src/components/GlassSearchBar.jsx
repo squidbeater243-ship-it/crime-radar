@@ -95,8 +95,8 @@ export default function GlassSearchBar() {
             aria-controls="state-suggestions"
             aria-expanded={open && isFocused}
             aria-haspopup="listbox"
-            placeholder="Type a state name and press enter"
-            className="w-full bg-transparent text-base text-white outline-none placeholder:text-slate-400"
+            placeholder="Search a state"
+            className="w-full min-w-0 truncate bg-transparent text-base text-white outline-none placeholder:text-slate-400"
           />
           <button
             type="submit"

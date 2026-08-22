@@ -69,6 +69,18 @@ body {
   animation: radar-blip 3s ease-in-out infinite;
 }
 
+/* Horizontally-scrollable tab bars (State Detail, Compare rankings) need the
+   overflow so tabs don't wrap into uneven rows on narrow screens, but a
+   visible scrollbar on a short pill strip reads as a rendering glitch. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .radar-sweep {
     animation: none;

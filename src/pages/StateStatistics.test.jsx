@@ -21,7 +21,7 @@ function renderPage() {
 describe('StateStatistics', () => {
   it('renders the search bar and featured state links', () => {
     renderPage();
-    expect(screen.getByPlaceholderText('Type a state name and press enter')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search a state')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'California' })).toHaveAttribute('href', '/state/california');
     expect(screen.getByRole('link', { name: 'Texas' })).toHaveAttribute('href', '/state/texas');
     expect(screen.getByRole('link', { name: 'Florida' })).toHaveAttribute('href', '/state/florida');
