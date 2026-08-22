@@ -1,5 +1,4 @@
 import { Component } from 'react';
-import * as Sentry from '@sentry/react';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -13,7 +12,9 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('Unhandled error in app tree:', error, info);
-    Sentry.captureException(error, { extra: { componentStack: info?.componentStack } });
+    import('@sentry/react').then((Sentry) => {
+      Sentry.captureException(error, { extra: { componentStack: info?.componentStack } });
+    });
   }
 
   render() {

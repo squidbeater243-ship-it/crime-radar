@@ -1,0 +1,14 @@
+# Crime Radar
+
+> Crime Radar is a dashboard for exploring U.S. crime, arrest, and poverty statistics by state, built on real FBI/state-agency and U.S. Census data. It includes an interactive choropleth map, per-state detail reports with A-F safety grades, side-by-side state comparisons, national rankings, and a city-level crime news scan.
+
+## Pages
+
+- [Home](https://crimeradar.platinumsoftwaremn.com/): Interactive U.S. map colored by crime severity, plus a city crime-news scan tool.
+- [State Statistics](https://crimeradar.platinumsoftwaremn.com/state-statistics): National overview and rankings of all 50 states by combined crime index, violent crime rate, and poverty rate.
+- [Compare](https://crimeradar.platinumsoftwaremn.com/compare): Side-by-side comparison of any two states with a normalized radar chart and raw crime-rate bar charts.
+- [About & Methodology](https://crimeradar.platinumsoftwaremn.com/about): Explanation of data sources and how the safety grades and crime index are calculated.
+
+## State reports
+
+Each U.S. state has a detail page at `/state/{state-name}` (e.g. [/state/california](https://crimeradar.platinumsoftwaremn.com/state/california)) with crime rates, gender/race arrest demographics, income/poverty data, and a computed A-F safety grade relative to the other 49 states. The full list of state URLs is in [sitemap.xml](https://crimeradar.platinumsoftwaremn.com/sitemap.xml).

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import * as Sentry from '@sentry/react';
 import ErrorBoundary from './ErrorBoundary';
 
@@ -39,7 +39,7 @@ describe('ErrorBoundary', () => {
     expect(screen.getByRole('link', { name: 'Back home' })).toHaveAttribute('href', '/');
   });
 
-  it('reports the caught error to Sentry', () => {
+  it('reports the caught error to Sentry', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
     render(
@@ -48,6 +48,9 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
+    // Sentry is loaded via dynamic import(), so capture happens a microtask
+    // after render rather than synchronously within componentDidCatch.
+    await waitFor(() => expect(Sentry.captureException).toHaveBeenCalled());
     expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ extra: expect.any(Object) }));
     expect(Sentry.captureException.mock.calls[0][0].message).toBe('kaboom');
   });

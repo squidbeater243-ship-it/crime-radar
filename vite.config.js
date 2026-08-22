@@ -7,6 +7,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Default injection is a plain synchronous <script src="/registerSW.js">
+      // in <head>, which blocks HTML parsing to fetch+run 542 bytes that only
+      // register a service worker — defer it so it can't hold up first paint.
+      injectRegister: 'script-defer',
       // We already ship public/manifest.webmanifest and its <link> tag by
       // hand — disable the plugin's own manifest generation so there's
       // exactly one source of truth for it, not two competing ones.
