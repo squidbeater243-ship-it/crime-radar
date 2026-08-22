@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Radar, ShieldCheck, X } from 'lucide-react';
 import stateData, { stateSlugs } from '../data/stateData';
 import { subscribe } from '../services/subscribeService';
 import cityService from '../services/cityService';
 import RadarBackdrop from './RadarBackdrop';
 import CityAutocomplete from './CityAutocomplete';
+import FadeIn from './FadeIn';
+import { EASE_OUT_STRONG } from '../utils/motion';
 
 export default function SignupTakeover({ open, onClose }) {
   const [state, setState] = useState('');
@@ -13,6 +15,7 @@ export default function SignupTakeover({ open, onClose }) {
   const [email, setEmail] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [status, setStatus] = useState('idle');
+  const prefersReducedMotion = useReducedMotion();
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -62,21 +65,28 @@ export default function SignupTakeover({ open, onClose }) {
 
             {status === 'pending' ? (
               <div className="py-4">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10">
-                  <ShieldCheck className="h-6 w-6 text-emerald-300" aria-hidden />
-                </div>
-                <h2 className="mt-4 text-xl font-semibold text-white">Almost there.</h2>
-                <p className="mx-auto mt-2 max-w-sm text-sm text-slate-300">
-                  Check {email} for a confirmation link. Alerts for {city}, {stateData[state]?.displayName || state} start once you
-                  confirm.
-                </p>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="mt-6 inline-flex items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/15 px-6 py-2.5 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/25"
+                <motion.div
+                  initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.2, ease: EASE_OUT_STRONG }}
+                  className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10"
                 >
-                  Done
-                </button>
+                  <ShieldCheck className="h-6 w-6 text-emerald-300" aria-hidden />
+                </motion.div>
+                <FadeIn y={8} duration={0.25} delay={0.1}>
+                  <h2 className="mt-4 text-xl font-semibold text-white">Almost there.</h2>
+                  <p className="mx-auto mt-2 max-w-sm text-sm text-slate-300">
+                    Check {email} for a confirmation link. Alerts for {city}, {stateData[state]?.displayName || state} start once you
+                    confirm.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="mt-6 inline-flex items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/15 px-6 py-2.5 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/25"
+                  >
+                    Done
+                  </button>
+                </FadeIn>
               </div>
             ) : (
               <>
