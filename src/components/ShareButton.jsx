@@ -27,14 +27,23 @@ export default function ShareButton({ title, text, url, className = '' }) {
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleShare}
-      className={`inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition hover:border-cyan-300/40 hover:bg-cyan-500/15 ${className}`}
-      aria-label="Share this report"
-    >
-      {copied ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Share2 className="h-3.5 w-3.5" />}
-      {copied ? 'Copied!' : 'Share'}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleShare}
+        className={`inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition hover:border-cyan-300/40 hover:bg-cyan-500/15 ${className}`}
+        aria-label="Share this report"
+      >
+        {copied ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Share2 className="h-3.5 w-3.5" />}
+        {copied ? 'Copied!' : 'Share'}
+      </button>
+      {/* The button's aria-label is static ("Share this report"), so its
+          visible "Copied!" text swap is invisible to screen readers -- this
+          announces the same feedback sighted users get from the icon/label
+          change above. */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {copied ? 'Link copied to clipboard' : ''}
+      </span>
+    </>
   );
 }

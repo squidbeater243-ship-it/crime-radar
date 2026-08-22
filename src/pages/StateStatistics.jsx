@@ -43,7 +43,7 @@ export default function StateStatistics() {
     <div className="relative min-h-screen overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.2),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.2),_transparent_35%)]" />
 
-      <main className="relative mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center px-6 py-16 sm:px-8 lg:px-10">
+      <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center px-6 py-16 sm:px-8 lg:px-10">
         <FadeIn y={18} duration={0.45} className="relative w-full max-w-4xl rounded-[2rem] border border-white/15 bg-gradient-to-br from-white/6 to-white/3 p-8 text-center shadow-2xl shadow-cyan-500/10 backdrop-blur-2xl sm:p-12 overflow-hidden">
           <RadarBackdrop size={560} top="-6rem" className="opacity-40" />
 
@@ -98,7 +98,7 @@ export default function StateStatistics() {
         <div className="mt-6">
           <SourcesButton />
         </div>
-      </main>
+      </div>
     </div>
   );
 }

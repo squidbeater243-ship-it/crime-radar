@@ -57,10 +57,24 @@ function AppShell({ signupOpen, onCloseSignup, onAlertsClick }) {
   return (
     <>
       <ScrollToTop />
+      {!isOgRoute && (
+        <a
+          href="#main-content"
+          className="fixed left-4 top-4 z-[200] -translate-y-20 rounded-full border border-cyan-400/30 bg-slate-900 px-4 py-2 text-sm font-medium text-cyan-100 opacity-0 transition focus:translate-y-0 focus:opacity-100"
+        >
+          Skip to main content
+        </a>
+      )}
       {!isOgRoute && <NavBar onAlertsClick={onAlertsClick} />}
       {!isOgRoute && <SignupTakeover open={signupOpen} onClose={onCloseSignup} />}
       <Suspense fallback={<RouteFallback />}>
-        <AnimatedRoutes />
+        {/* Single main landmark for the whole app -- individual pages render
+            their content directly, not their own <main>, so screen-reader
+            landmark navigation and this skip link both have exactly one
+            target regardless of route. */}
+        <main id="main-content" tabIndex={-1} className="outline-none">
+          <AnimatedRoutes />
+        </main>
       </Suspense>
       {!isOgRoute && <Footer />}
     </>
