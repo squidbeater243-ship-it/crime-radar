@@ -124,6 +124,11 @@ export default function UsMap() {
 
     playPing();
 
+    if (prefersReducedMotion) {
+      navigate(`/state/${encodeURIComponent(slug)}`);
+      return;
+    }
+
     const centroid = geoCentroid(geo);
     const [[x0, y0], [x1, y1]] = pathGenerator.bounds(geo);
     const boxWidth = Math.max(x1 - x0, 1);
@@ -152,7 +157,7 @@ export default function UsMap() {
         navigate(`/state/${encodeURIComponent(slug)}`);
       },
     });
-  }, [position, navigate, pendingSlug]);
+  }, [position, navigate, pendingSlug, prefersReducedMotion]);
 
   return (
     <div className="mt-8 w-full rounded-3xl border border-white/10 bg-slate-950/70 p-4 shadow-sm shadow-cyan-500/10 backdrop-blur-sm sm:p-6">
