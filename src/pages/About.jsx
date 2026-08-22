@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Activity, Database, Newspaper, ShieldCheck } from 'lucide-react';
 import usePageMeta from '../hooks/usePageMeta';
+import FadeIn from '../components/FadeIn';
 
 function Section({ icon: Icon, title, children }) {
   return (
@@ -26,12 +26,7 @@ export default function About() {
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-16 text-slate-100 sm:px-6 lg:px-8">
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="mx-auto max-w-3xl"
-      >
+      <FadeIn y={14} duration={0.35} className="mx-auto max-w-3xl">
         <div className="text-center">
           <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/70">About Crime Radar</p>
           <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
@@ -100,7 +95,7 @@ export default function About() {
             Back to home
           </Link>
         </div>
-      </motion.div>
+      </FadeIn>
     </div>
   );
 }

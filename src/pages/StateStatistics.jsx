@@ -1,12 +1,12 @@
 import { lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import GlassSearchBar from '../components/GlassSearchBar';
 import RecentSearches from '../components/RecentSearches';
 import FavoriteStates from '../components/FavoriteStates';
 import TrendingStates from '../components/TrendingStates';
 import SourcesButton from '../components/SourcesButton';
 import RadarBackdrop from '../components/RadarBackdrop';
+import FadeIn from '../components/FadeIn';
 import usePageMeta from '../hooks/usePageMeta';
 import stateData from '../data/stateData';
 
@@ -44,12 +44,7 @@ export default function StateStatistics() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.2),_transparent_35%),radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.2),_transparent_35%)]" />
 
       <main className="relative mx-auto flex min-h-screen max-w-6xl flex-col items-center justify-center px-6 py-16 sm:px-8 lg:px-10">
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45 }}
-          className="relative w-full max-w-4xl rounded-[2rem] border border-white/15 bg-gradient-to-br from-white/6 to-white/3 p-8 text-center shadow-2xl shadow-cyan-500/10 backdrop-blur-2xl sm:p-12 overflow-hidden"
-        >
+        <FadeIn y={18} duration={0.45} className="relative w-full max-w-4xl rounded-[2rem] border border-white/15 bg-gradient-to-br from-white/6 to-white/3 p-8 text-center shadow-2xl shadow-cyan-500/10 backdrop-blur-2xl sm:p-12 overflow-hidden">
           <RadarBackdrop size={560} top="-6rem" className="opacity-40" />
 
           <div className="relative z-10">
@@ -87,7 +82,7 @@ export default function StateStatistics() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </FadeIn>
 
         <div className="my-8 flex w-full flex-col items-center gap-4">
           <FavoriteStates />

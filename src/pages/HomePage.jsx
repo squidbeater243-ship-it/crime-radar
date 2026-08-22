@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, useReducedMotion } from 'framer-motion';
 import { ExternalLink, Heart, Mail, Radar } from 'lucide-react';
 import stateData, { stateSlugs } from '../data/stateData';
 import usePageMeta from '../hooks/usePageMeta';
@@ -13,6 +13,7 @@ import RadarBackdrop from '../components/RadarBackdrop';
 import SafetyBadge from '../components/SafetyBadge';
 import SavedAreas from '../components/SavedAreas';
 import CityAutocomplete from '../components/CityAutocomplete';
+import FadeIn from '../components/FadeIn';
 
 const TAGLINES = [
   { lead: 'Make sure ', highlight: 'your new home', trail: ' is safe.' },
@@ -38,18 +39,11 @@ function RotatingTagline() {
   return (
     <h1 className="text-4xl font-semibold text-white sm:text-5xl lg:text-6xl">
       <AnimatePresence mode="wait">
-        <motion.span
-          key={index}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.4 }}
-          className="inline-block"
-        >
+        <FadeIn key={index} y={8} duration={0.4} exit className="inline-block">
           {lead}
           <span className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text text-transparent">{highlight}</span>
           {trail}
-        </motion.span>
+        </FadeIn>
       </AnimatePresence>
     </h1>
   );
@@ -217,12 +211,7 @@ export default function HomePage() {
     <div className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-16 text-slate-100 sm:px-6 lg:px-8">
       <RadarBackdrop />
 
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45 }}
-        className="relative mx-auto max-w-3xl text-center drop-shadow-[0_2px_16px_rgba(2,6,23,0.85)]"
-      >
+      <FadeIn y={18} duration={0.45} className="relative mx-auto max-w-3xl text-center drop-shadow-[0_2px_16px_rgba(2,6,23,0.85)]">
         <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/70">Crime Radar</p>
         <RotatingTagline />
         <p className="mx-auto mt-4 max-w-xl text-base text-slate-300 sm:text-lg">
@@ -285,7 +274,7 @@ export default function HomePage() {
         <div className="mt-6 flex justify-center">
           <SavedAreas onSelect={handleSelectSavedArea} />
         </div>
-      </motion.div>
+      </FadeIn>
 
       <div className="relative mx-auto mt-10 max-w-2xl">
         {submitted && (

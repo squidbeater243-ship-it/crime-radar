@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Activity, Landmark, ShieldAlert } from 'lucide-react';
 import {
   PolarAngleAxis,
@@ -25,6 +24,7 @@ import {
 } from '../utils/stateStats';
 import SafetyBadge from '../components/SafetyBadge';
 import CountUp from '../components/CountUp';
+import FadeIn from '../components/FadeIn';
 
 const compareOptions = stateSlugs.map((slug) => ({ slug, label: stateData[slug].displayName }));
 
@@ -149,12 +149,7 @@ export default function ComparePage() {
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100 sm:px-6 lg:px-8">
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="mx-auto max-w-5xl"
-      >
+      <FadeIn y={14} duration={0.35} className="mx-auto max-w-5xl">
         <div className="mb-6 flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/70">Compare &amp; rankings</p>
@@ -261,7 +256,7 @@ export default function ComparePage() {
             />
           </div>
         </div>
-      </motion.div>
+      </FadeIn>
     </div>
   );
 }

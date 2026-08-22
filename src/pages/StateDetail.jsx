@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { ArrowLeft, BarChart3, Heart, PieChart as PieChartIcon, ShieldCheck, TrendingUp } from 'lucide-react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
@@ -32,6 +32,7 @@ import isPrerendering from '../utils/isPrerendering';
 import SafetyBadge from '../components/SafetyBadge';
 import ShareButton from '../components/ShareButton';
 import CountUp from '../components/CountUp';
+import FadeIn from '../components/FadeIn';
 
 const tabs = [
   { id: 'crime', label: 'Crime Statistics', icon: ShieldCheck },
@@ -460,12 +461,7 @@ export default function StateDetail() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.15),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(129,140,248,0.15),_transparent_30%)] px-4 py-8 sm:px-6 lg:px-8">
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="mx-auto max-w-6xl"
-      >
+      <FadeIn y={14} duration={0.35} className="mx-auto max-w-6xl">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-slate-300 transition hover:text-white">
             <ArrowLeft className="h-4 w-4" />
@@ -557,19 +553,13 @@ export default function StateDetail() {
 
           <div className="mt-4 rounded-[1.5rem] border border-white/10 bg-slate-900/60 p-4 sm:p-6">
             <AnimatePresence mode="wait">
-              <motion.div
-                key={loading ? 'loading' : activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.25 }}
-              >
+              <FadeIn key={loading ? 'loading' : activeTab} y={10} duration={0.25} exit>
                 {renderPanel()}
-              </motion.div>
+              </FadeIn>
             </AnimatePresence>
           </div>
         </div>
-      </motion.div>
+      </FadeIn>
     </div>
   );
 }
