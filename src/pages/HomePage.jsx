@@ -309,71 +309,73 @@ export default function HomePage() {
           </div>
         )}
 
-        <AnimatePresence mode="wait">
-          {status === 'idle' && (
-            // A solid-enough background so RadarBackdrop's decorative ring
-            // (which passes directly behind this box) doesn't read as a stray
-            // line cutting across the text -- backdrop-blur alone was too
-            // weak to soften a hairline stroke at this scale.
-            <FadeIn key="idle" y={8} duration={0.25} exit>
-              <div className="rounded-3xl border border-dashed border-white/10 bg-slate-950/60 p-8 text-center text-sm text-slate-400">
-                Enter a state and city above to scan the area.
-              </div>
-            </FadeIn>
-          )}
+        <div className="min-h-[7.5rem]">
+          <AnimatePresence mode="wait">
+            {status === 'idle' && (
+              // A solid-enough background so RadarBackdrop's decorative ring
+              // (which passes directly behind this box) doesn't read as a stray
+              // line cutting across the text -- backdrop-blur alone was too
+              // weak to soften a hairline stroke at this scale.
+              <FadeIn key="idle" y={8} duration={0.25} exit>
+                <div className="rounded-3xl border border-dashed border-white/10 bg-slate-950/60 p-8 text-center text-sm text-slate-400">
+                  Enter a state and city above to scan the area.
+                </div>
+              </FadeIn>
+            )}
 
-          {status === 'loading' && (
-            <FadeIn key="loading" y={8} duration={0.25} exit>
-              <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
-                <ScanningRadar label="Pulling recent safety updates…" />
-              </div>
-            </FadeIn>
-          )}
+            {status === 'loading' && (
+              <FadeIn key="loading" y={8} duration={0.25} exit>
+                <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
+                  <ScanningRadar label="Pulling recent safety updates…" />
+                </div>
+              </FadeIn>
+            )}
 
-          {status === 'error' && (
-            <FadeIn key="error" y={8} duration={0.25} exit>
-              <div className="rounded-3xl border border-rose-400/20 bg-rose-500/5 p-8 text-center">
-                <p className="text-slate-200">Couldn&apos;t reach the news feed right now. Try again in a moment.</p>
-              </div>
-            </FadeIn>
-          )}
+            {status === 'error' && (
+              <FadeIn key="error" y={8} duration={0.25} exit>
+                <div className="rounded-3xl border border-rose-400/20 bg-rose-500/5 p-8 text-center">
+                  <p className="text-slate-200">Couldn&apos;t reach the news feed right now. Try again in a moment.</p>
+                </div>
+              </FadeIn>
+            )}
 
-          {status === 'empty' && (
-            <FadeIn key="empty" y={8} duration={0.25} exit>
-              <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
-                <p className="text-slate-300">
-                  No recent safety-relevant headlines found for this area — that's good news. Try a larger nearby city for more coverage.
-                </p>
-              </div>
-            </FadeIn>
-          )}
+            {status === 'empty' && (
+              <FadeIn key="empty" y={8} duration={0.25} exit>
+                <div className="rounded-3xl border border-white/10 bg-slate-900/70 p-8 text-center backdrop-blur-xl">
+                  <p className="text-slate-300">
+                    No recent safety-relevant headlines found for this area — that's good news. Try a larger nearby city for more coverage.
+                  </p>
+                </div>
+              </FadeIn>
+            )}
 
-          {status === 'success' && (
-            <FadeIn key="success" y={8} duration={0.25} exit>
-              <div className="space-y-3">
-                {items.map((item) => (
-                  <a
-                    key={item.link}
-                    href={item.link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-2xl border border-white/10 bg-slate-900/70 p-4 backdrop-blur-xl transition hover:border-cyan-400/30 hover:bg-slate-900/90"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-medium text-white">{item.title}</p>
-                      <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
-                    </div>
-                    <p className="mt-2 text-xs text-slate-500">
-                      {item.source}
-                      {item.source && item.pubDate ? ' · ' : ''}
-                      {formatPubDate(item.pubDate)}
-                    </p>
-                  </a>
-                ))}
-              </div>
-            </FadeIn>
-          )}
-        </AnimatePresence>
+            {status === 'success' && (
+              <FadeIn key="success" y={8} duration={0.25} exit>
+                <div className="space-y-3">
+                  {items.map((item) => (
+                    <a
+                      key={item.link}
+                      href={item.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block rounded-2xl border border-white/10 bg-slate-900/70 p-4 backdrop-blur-xl transition hover:border-cyan-400/30 hover:bg-slate-900/90"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-medium text-white">{item.title}</p>
+                        <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">
+                        {item.source}
+                        {item.source && item.pubDate ? ' · ' : ''}
+                        {formatPubDate(item.pubDate)}
+                      </p>
+                    </a>
+                  ))}
+                </div>
+              </FadeIn>
+            )}
+          </AnimatePresence>
+        </div>
 
         {submitted && status !== 'loading' && (
           <EmailSignup city={submitted.city} stateDisplay={stateData[submitted.state]?.displayName || submitted.state} />
