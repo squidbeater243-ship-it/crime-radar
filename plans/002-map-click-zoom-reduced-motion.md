@@ -1,7 +1,7 @@
 # 002 — Respect prefers-reduced-motion on the map's click-to-zoom navigation
 
-- **Status**: TODO
-- **Commit**: e49a344
+- **Status**: Done
+- **Commit**: 2e12519
 - **Severity**: HIGH
 - **Category**: Accessibility
 - **Estimated scope**: 1 file, small

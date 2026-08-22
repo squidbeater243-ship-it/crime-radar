@@ -1,7 +1,7 @@
 # 008 — Animate HomePage's search-result status swaps
 
-- **Status**: TODO
-- **Commit**: e49a344
+- **Status**: Done
+- **Commit**: 4e98466
 - **Severity**: New opportunity (not a regression)
 - **Category**: Teleporting state / preventing a jarring change
 - **Estimated scope**: 1 file, medium (five conditional blocks touched)

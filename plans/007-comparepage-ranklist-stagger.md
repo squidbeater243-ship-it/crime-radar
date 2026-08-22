@@ -1,7 +1,7 @@
 # 007 — Stagger the ranked-state list when switching ranking tabs
 
-- **Status**: TODO
-- **Commit**: e49a344
+- **Status**: Done
+- **Commit**: cc1779c
 - **Severity**: New opportunity (not a regression)
 - **Category**: Group entrances / state indication
 - **Estimated scope**: 1 file, small-medium

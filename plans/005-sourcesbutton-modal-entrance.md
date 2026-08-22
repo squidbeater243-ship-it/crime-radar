@@ -1,7 +1,7 @@
 # 005 — Animate the Sources modal's entrance and exit
 
-- **Status**: TODO
-- **Commit**: e49a344
+- **Status**: Done
+- **Commit**: f8e7536
 - **Severity**: New opportunity (not a regression — nothing here is broken today, it's simply un-animated)
 - **Category**: Missing spatial story / teleporting state
 - **Estimated scope**: 1 file, small

@@ -1,7 +1,7 @@
 # 006 — Add entrance motion to the signup success state
 
-- **Status**: TODO
-- **Commit**: e49a344
+- **Status**: Done
+- **Commit**: 46130db
 - **Severity**: New opportunity (not a regression)
 - **Category**: Delight (rare, high-emotion moment)
 - **Estimated scope**: 1 file, small

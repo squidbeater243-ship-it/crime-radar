@@ -1,7 +1,7 @@
 # 001 — Extract the duplicated easing curve into a shared token
 
-- **Status**: TODO
-- **Commit**: e49a344
+- **Status**: Done
+- **Commit**: d1f5489
 - **Severity**: LOW
 - **Category**: Cohesion & tokens
 - **Estimated scope**: 3 files (1 new, 2 edited), trivial size

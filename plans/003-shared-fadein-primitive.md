@@ -1,7 +1,7 @@
 # 003 — Create a shared FadeIn primitive and migrate the 7 duplicated entrance animations to it
 
-- **Status**: TODO
-- **Commit**: e49a344
+- **Status**: Done
+- **Commit**: de1847b (fix: 7468440)
 - **Severity**: MEDIUM
 - **Category**: Accessibility + Cohesion & tokens
 - **Estimated scope**: 6 files (1 new component, 5 edited), medium size

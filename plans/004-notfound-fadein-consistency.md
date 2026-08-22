@@ -1,7 +1,7 @@
 # 004 — Bring NotFound's entrance in line with the other 6 routed pages
 
-- **Status**: TODO
-- **Commit**: e49a344
+- **Status**: Done
+- **Commit**: d77e60f
 - **Severity**: LOW
 - **Category**: Cohesion & tokens
 - **Estimated scope**: 1 file, trivial size
