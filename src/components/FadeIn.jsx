@@ -7,7 +7,7 @@ import { EASE_OUT_STRONG } from '../utils/motion';
 // into one place, and is the one spot that needs to know about
 // prefers-reduced-motion for all of them: reduced motion keeps the
 // opacity fade (it aids comprehension) but drops the position change.
-export default function FadeIn({ children, y = 16, duration = 0.4, delay = 0, exit = false, className, ...rest }) {
+export default function FadeIn({ children, y = 16, duration = 0.4, delay = 0, exit = false, as = 'div', className, ...rest }) {
   const prefersReducedMotion = useReducedMotion();
   const offset = prefersReducedMotion ? 0 : y;
 
@@ -19,8 +19,10 @@ export default function FadeIn({ children, y = 16, duration = 0.4, delay = 0, ex
     variants.exit = { opacity: 0, y: -offset, transition: { duration: duration * 0.7, ease: EASE_OUT_STRONG } };
   }
 
+  const Component = motion[as];
+
   return (
-    <motion.div
+    <Component
       initial="initial"
       animate="animate"
       exit={exit ? 'exit' : undefined}
@@ -29,6 +31,6 @@ export default function FadeIn({ children, y = 16, duration = 0.4, delay = 0, ex
       {...rest}
     >
       {children}
-    </motion.div>
+    </Component>
   );
 }

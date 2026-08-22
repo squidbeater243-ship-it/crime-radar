@@ -39,7 +39,7 @@ function RotatingTagline() {
   return (
     <h1 className="text-4xl font-semibold text-white sm:text-5xl lg:text-6xl">
       <AnimatePresence mode="wait">
-        <FadeIn key={index} y={8} duration={0.4} exit className="inline-block">
+        <FadeIn key={index} y={8} duration={0.4} exit as="span" className="inline-block">
           {lead}
           <span className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text text-transparent">{highlight}</span>
           {trail}
