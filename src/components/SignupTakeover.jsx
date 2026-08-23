@@ -125,7 +125,7 @@ export default function SignupTakeover({ open, onClose }) {
                       onChange={(event) => setState(event.target.value)}
                       required
                       aria-label="State"
-                      className="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none sm:w-40"
+                      className="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 sm:w-40"
                     >
                       <option value="" disabled>
                         State
@@ -144,7 +144,7 @@ export default function SignupTakeover({ open, onClose }) {
                       ariaLabel="City"
                       id="signup-city"
                       className="w-full sm:flex-1"
-                      inputClassName="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500"
+                      inputClassName="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                     />
                   </div>
                   <input
@@ -154,7 +154,7 @@ export default function SignupTakeover({ open, onClose }) {
                     placeholder="you@example.com"
                     required
                     aria-label="Email address"
-                    className="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500"
+                    className="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
                   />
                   <label className="flex items-start gap-2 text-xs text-slate-400">
                     <input

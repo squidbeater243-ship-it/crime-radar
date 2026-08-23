@@ -81,7 +81,7 @@ export default function GlassSearchBar() {
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-3xl rounded-full border border-white/20 bg-white/10 p-2 shadow-[0_0_70px_rgba(59,130,246,0.18)] backdrop-blur-xl" role="search" aria-label="Search states">
       <div className="relative">
-        <div className="flex items-center gap-3 rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 sm:px-5 sm:py-4">
+        <div className="flex items-center gap-3 rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 transition focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-500/20 sm:px-5 sm:py-4">
           <Search className="h-5 w-5 shrink-0 text-slate-300" aria-hidden />
           <input
             ref={inputRef}

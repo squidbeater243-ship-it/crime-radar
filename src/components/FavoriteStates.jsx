@@ -39,7 +39,7 @@ export default function FavoriteStates() {
             <button
               onClick={() => handleRemove(item.slug)}
               aria-label={`Remove ${item.label} from favorites`}
-              className="rounded-full p-0.5 text-slate-500 transition hover:bg-white/10 hover:text-rose-300"
+              className="rounded-full p-1.5 text-slate-500 transition hover:bg-white/10 hover:text-rose-300"
             >
               <X className="h-3 w-3" />
             </button>

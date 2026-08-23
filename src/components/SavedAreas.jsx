@@ -37,7 +37,7 @@ export default function SavedAreas({ onSelect }) {
               type="button"
               onClick={() => handleRemove(area.state, area.city)}
               aria-label={`Remove ${area.city}, ${area.stateDisplay} from saved areas`}
-              className="rounded-full p-0.5 text-slate-500 transition hover:bg-white/10 hover:text-rose-300"
+              className="rounded-full p-1.5 text-slate-500 transition hover:bg-white/10 hover:text-rose-300"
             >
               <X className="h-3 w-3" />
             </button>

@@ -130,7 +130,7 @@ function EmailSignup({ city, stateDisplay }) {
               placeholder="you@example.com"
               required
               aria-label="Email address"
-              className="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 sm:flex-1"
+              className="w-full rounded-full border border-white/10 bg-slate-950/70 px-4 py-2.5 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 sm:flex-1"
             />
             <button
               type="submit"
@@ -228,7 +228,7 @@ export default function HomePage() {
             onChange={(event) => setState(event.target.value)}
             required
             aria-label="State"
-            className="w-full rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none sm:w-48"
+            className="w-full rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 sm:w-48"
           >
             <option value="" disabled>
               State

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import cityService from '../services/cityService';
 
 const DEFAULT_INPUT_CLASSNAME =
-  'w-full rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500';
+  'w-full rounded-full border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20';
 
 export default function CityAutocomplete({
   value,
