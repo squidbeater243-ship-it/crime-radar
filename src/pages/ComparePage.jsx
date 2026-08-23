@@ -42,7 +42,7 @@ function RankList({ title, unit, rows, color, safetyScores }) {
       className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-sm transition hover:border-white/15 hover:bg-white/10"
     >
       <span className="flex items-center gap-2 text-slate-200">
-        <span className="w-5 shrink-0 text-right text-xs text-slate-500">{rank}</span>
+        <span className="w-5 shrink-0 text-right text-xs text-slate-400">{rank}</span>
         {item.name}
         {safetyScores && <SafetyBadge score={safetyScores[item.slug]} />}
       </span>

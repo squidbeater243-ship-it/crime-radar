@@ -296,7 +296,7 @@ export default function StateDetail() {
             <p className="mt-3 text-sm text-slate-400">
               {trendCaption} {TREND_2021_NOTE}
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-400">
               Source:{' '}
               <a
                 href="https://en.wikipedia.org/wiki/List_of_U.S._states_and_territories_by_violent_crime_rate"
@@ -502,7 +502,7 @@ export default function StateDetail() {
               )}
             </div>
             {verified && sources && (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-400">
                 Sources:{' '}
                 {sources.map((s, i) => (
                   <span key={s.url}>

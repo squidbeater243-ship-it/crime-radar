@@ -176,7 +176,7 @@ export default function UsMap() {
         {geoError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
             <p className="text-sm text-rose-300">Couldn't load the map ({geoError})</p>
-            <p className="text-xs text-slate-500">Check your connection and refresh the page.</p>
+            <p className="text-xs text-slate-400">Check your connection and refresh the page.</p>
           </div>
         )}
 
@@ -266,7 +266,7 @@ export default function UsMap() {
               </span>
             </div>
             <p className="text-slate-300">{hovered.total.toLocaleString()} combined crime index</p>
-            <p className="text-slate-500">Click to view full report</p>
+            <p className="text-slate-400">Click to view full report</p>
           </div>
         )}
       </div>

@@ -45,7 +45,7 @@ export default function SourcesButton() {
                   <strong>Gender & race tabs (every state):</strong>{' '}
                   <span className="text-slate-400">Show real national FBI arrest data, 2023 — the FBI doesn't publish state-by-state breakdowns by sex or race, so every state shows the same national figures.</span>
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-400">
                   Note: arrest data reflects who was arrested, not who committed an offense — it's shaped by policing intensity and reporting differences, not just underlying offense rates.
                 </p>
                 <p>

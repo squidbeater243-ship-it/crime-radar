@@ -297,13 +297,13 @@ export default function HomePage() {
                 </button>
               </div>
               {submittedSafetyScore != null && (
-                <p className="hidden max-w-[14rem] text-right text-xs text-slate-500 sm:block">
+                <p className="hidden max-w-[14rem] text-right text-xs text-slate-400 sm:block">
                   Statewide safety grade for {stateData[submitted.state]?.displayName} — not specific to {submitted.city}.
                 </p>
               )}
             </div>
             {submitted.originalCity && (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-400">
                 Showing results for {submitted.city} — you typed &quot;{submitted.originalCity}&quot;.
               </p>
             )}
@@ -365,7 +365,7 @@ export default function HomePage() {
                         <p className="text-sm font-medium text-white">{item.title}</p>
                         <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
                       </div>
-                      <p className="mt-2 text-xs text-slate-500">
+                      <p className="mt-2 text-xs text-slate-400">
                         {item.source}
                         {item.source && item.pubDate ? ' · ' : ''}
                         {formatPubDate(item.pubDate)}

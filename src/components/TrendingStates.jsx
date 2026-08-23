@@ -50,7 +50,7 @@ export default function TrendingStates() {
         ))}
       </div>
       {lastReset && (
-        <p className="mt-3 text-[11px] text-slate-500">Resets weekly · last reset {formatResetDate(lastReset)}</p>
+        <p className="mt-3 text-[11px] text-slate-400">Resets weekly · last reset {formatResetDate(lastReset)}</p>
       )}
     </div>
   );
